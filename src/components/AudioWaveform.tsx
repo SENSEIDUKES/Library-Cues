@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Play, Pause, Download, Trash2, CheckCircle, Circle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Play, Pause, Download, Trash2, CheckCircle, Circle, Volume2, Activity, Info, CheckSquare, Square } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SoundAsset } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
@@ -11,13 +11,17 @@ interface AudioWaveformProps {
   onReject?: () => void;
   onRename?: (newName: string) => void;
   isKept?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
   className?: string;
 }
 
-export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, className }: AudioWaveformProps) {
+export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, isSelected, onToggleSelect, className }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
   
   const {
+    audioRef,
     isPlaying,
     currentTime,
     displayDuration,
@@ -26,8 +30,18 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, class
     peaks,
     isDecoding,
     sampleRate,
-    fileSizeStr
+    fileSizeStr,
+    volume,
+    setVolume
   } = useAudioWaveform(asset);
+
+  useEffect(() => {
+    if (audioRef?.current) {
+      audioRef.current.playbackRate = playbackRate;
+      // @ts-ignore: preservesPitch is not fully typed in all TS versions
+      audioRef.current.preservesPitch = false;
+    }
+  }, [playbackRate, audioRef]);
 
   // Draw Waveform onto Canvas
   useEffect(() => {
@@ -115,6 +129,17 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, class
     )}>
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2.5 max-w-[75%]">
+          {onToggleSelect && (
+            <button 
+              onClick={onToggleSelect} 
+              className={cn(
+                "text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer select-none", 
+                isSelected && "text-white"
+              )}
+            >
+              {isSelected ? <CheckSquare className="w-4.5 h-4.5" /> : <Square className="w-4.5 h-4.5" />}
+            </button>
+          )}
           {onKeep && (
             <button 
               onClick={onKeep} 
@@ -134,13 +159,6 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, class
           />
         </div>
         <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-          <button 
-            onClick={handleDownload} 
-            className="p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer" 
-            title="Download"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
           {onReject && (
             <button 
               onClick={onReject} 
@@ -171,7 +189,14 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, class
             className="w-full h-full cursor-pointer rounded-lg bg-neutral-950/20 border border-white/[0.02]"
           />
         </div>
-        <div className="text-[10px] font-mono text-neutral-500 tabular-nums shrink-0 w-10 text-right">
+        <button 
+          onClick={handleDownload} 
+          className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-neutral-300 flex items-center justify-center transition-colors cursor-pointer shrink-0" 
+          title="Download"
+        >
+          <Download className="w-3.5 h-3.5" />
+        </button>
+        <div className="text-[10px] font-mono text-neutral-500 tabular-nums shrink-0 w-9 text-right">
           {formatTime(currentTime)}
         </div>
       </div>
@@ -188,20 +213,61 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, class
             {asset.prompt}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-500">
-          {displayDuration > 0 && <span>{displayDuration.toFixed(2)}s</span>}
-          {sampleRate && (
-            <>
-              <span className="text-neutral-800">•</span>
-              <span>{(sampleRate / 1000).toFixed(1)} kHz</span>
-            </>
-          )}
-          {fileSizeStr && (
-            <>
-              <span className="text-neutral-800">•</span>
-              <span>{fileSizeStr}</span>
-            </>
-          )}
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity" title="Volume">
+              <Volume2 className="w-3 h-3 text-neutral-400" />
+              <input 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.01" 
+                value={volume !== undefined ? volume : 1}
+                onChange={(e) => setVolume && setVolume(parseFloat(e.target.value))}
+                className="w-12 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-300 [&::-webkit-slider-thumb]:rounded-full"
+              />
+            </div>
+            
+            <div className="flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity" title="Pitch / Speed">
+              <Activity className="w-3 h-3 text-neutral-400" />
+              <input 
+                type="range" 
+                min="0.5" 
+                max="2" 
+                step="0.05" 
+                value={playbackRate}
+                onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+                className="w-12 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-300 [&::-webkit-slider-thumb]:rounded-full"
+              />
+              <span className="text-[9px] font-mono text-neutral-500 w-5 text-right">{playbackRate.toFixed(1)}x</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-500">
+            {displayDuration > 0 && <span>{displayDuration.toFixed(2)}s</span>}
+            <div className="relative group/info flex items-center justify-center">
+              <Info className="w-3.5 h-3.5 text-neutral-500 hover:text-neutral-300 transition-colors cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 hidden group-hover/info:flex flex-col gap-1 bg-neutral-800/95 backdrop-blur text-neutral-300 text-[10px] p-2.5 rounded-lg shadow-xl whitespace-nowrap z-10 border border-white/10 pointer-events-none text-left">
+                <div className="flex justify-between gap-6">
+                  <span className="text-neutral-500">Sample Rate</span>
+                  <span className="text-white">{sampleRate ? `${(sampleRate / 1000).toFixed(1)} kHz` : 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between gap-6">
+                  <span className="text-neutral-500">Bit Depth</span>
+                  <span className="text-white">16-bit</span>
+                </div>
+                <div className="flex justify-between gap-6">
+                  <span className="text-neutral-500">File Size</span>
+                  <span className="text-white">{fileSizeStr || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between gap-6">
+                  <span className="text-neutral-500">Format</span>
+                  <span className="text-white uppercase">{asset.mimeType.split('/')[1] || 'WAV'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

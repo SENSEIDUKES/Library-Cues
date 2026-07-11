@@ -6,7 +6,7 @@ import { Sparkles, Repeat } from 'lucide-react';
 interface GenerationControlsProps {
   params: GenerationParams;
   onChange: (params: GenerationParams) => void;
-  onGenerate: () => void;
+  onGenerate: (count: number) => void;
   isGenerating: boolean;
 }
 
@@ -122,25 +122,46 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </button>
       </div>
 
-      {/* Primary Action Button */}
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        onClick={onGenerate}
-        disabled={isGenerating || !params.prompt.trim()}
-        className="w-full py-4 px-4 bg-white text-black font-semibold rounded-2xl hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 mt-2 shadow-lg shadow-white/5 font-sans cursor-pointer select-none"
-      >
-        {isGenerating ? (
-          <>
-            <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-            <span className="tracking-tight text-sm">Synthesizing audio...</span>
-          </>
-        ) : (
-          <>
-            <Sparkles className="w-4 h-4 text-neutral-900 fill-neutral-900" />
-            <span className="tracking-tight text-sm">Synthesize Sounds</span>
-          </>
-        )}
-      </motion.button>
+      {/* Primary Action Buttons */}
+      <div className="flex gap-3 mt-2">
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onGenerate(1)}
+          disabled={isGenerating || !params.prompt.trim()}
+          className="flex-1 py-4 px-4 bg-white text-black font-semibold rounded-2xl hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-white/5 font-sans cursor-pointer select-none"
+        >
+          {isGenerating ? (
+            <>
+              <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+              <span className="tracking-tight text-sm">Synthesizing...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-neutral-900 fill-neutral-900" />
+              <span className="tracking-tight text-sm">Synthesize</span>
+            </>
+          )}
+        </motion.button>
+
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onGenerate(3)}
+          disabled={isGenerating || !params.prompt.trim()}
+          className="flex-1 py-4 px-4 bg-neutral-800 text-white font-semibold rounded-2xl hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-black/20 font-sans cursor-pointer select-none border border-white/[0.04]"
+        >
+          {isGenerating ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              <span className="tracking-tight text-sm">Generating...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-white fill-white" />
+              <span className="tracking-tight text-sm">Variants (3)</span>
+            </>
+          )}
+        </motion.button>
+      </div>
     </div>
   );
 }

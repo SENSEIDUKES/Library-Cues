@@ -9,46 +9,27 @@ const pauseCallbacks = new Map<string, () => void>();
 export function useAudioWaveform(asset: SoundAsset) {
   const audioUrl = `data:${asset.mimeType};base64,${asset.audioBase64}`;
   const {
+    audioRef,
     isPlaying,
     currentTime,
     duration: engineDuration,
     toggle: togglePlayInternal,
     pause,
-    seek
+    seek,
+    volume,
+    setVolume
   } = useAudioPlayer({ src: audioUrl });
 
   useEffect(() => {
     pauseCallbacks.set(asset.id, pause);
     return () => {
       pauseCallbacks.delete(asset.id);
-      if (activeAssetId === asset.id) {
-        activeAssetId = null;
-      }
     };
   }, [asset.id, pause]);
 
-  useEffect(() => {
-    if (isPlaying) {
-      if (activeAssetId && activeAssetId !== asset.id) {
-        const prevPause = pauseCallbacks.get(activeAssetId);
-        if (prevPause) {
-          prevPause();
-        }
-      }
-      activeAssetId = asset.id;
-    }
-  }, [isPlaying, asset.id]);
-
   const togglePlay = useCallback(() => {
-    if (!isPlaying) {
-      if (activeAssetId && activeAssetId !== asset.id) {
-        const prevPause = pauseCallbacks.get(activeAssetId);
-        if (prevPause) prevPause();
-      }
-      activeAssetId = asset.id;
-    }
     togglePlayInternal();
-  }, [isPlaying, asset.id, togglePlayInternal]);
+  }, [togglePlayInternal]);
 
   const [offlineDuration, setOfflineDuration] = useState(asset.durationSeconds || 0);
   const [peaks, setPeaks] = useState<number[]>([]);
@@ -99,6 +80,7 @@ export function useAudioWaveform(asset: SoundAsset) {
   }, [asset.audioBase64]);
 
   return {
+    audioRef,
     isPlaying,
     currentTime,
     displayDuration,
@@ -107,6 +89,8 @@ export function useAudioWaveform(asset: SoundAsset) {
     peaks,
     isDecoding,
     sampleRate,
-    fileSizeStr
+    fileSizeStr,
+    volume,
+    setVolume
   };
 }

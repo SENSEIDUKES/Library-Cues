@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GenerationParams, SoundAsset } from './types';
 import { GenerationControls } from './components/GenerationControls';
 import { AudioWaveform } from './components/AudioWaveform';
-import { FolderArchive, Library, Sparkles, AlertTriangle, Music } from 'lucide-react';
+import { FolderArchive, Library, Sparkles, AlertTriangle, Music, CheckSquare, Square, Trash2, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSoundLibrary } from './hooks/useSoundLibrary';
 
@@ -15,6 +15,7 @@ export default function App() {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingCount, setGeneratingCount] = useState(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [variations, setVariations] = useState<SoundAsset[]>([]);
   
@@ -22,24 +23,69 @@ export default function App() {
     library,
     handleKeep,
     handleRemoveFromLibrary,
+    handleBulkRemoveFromLibrary,
     handleRenameLibraryAsset,
     exportKit
   } = useSoundLibrary();
 
   const [activeTab, setActiveTab] = useState<'synthesize' | 'library'>('synthesize');
+  const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const handleGenerate = async () => {
+  const handleToggleSelectAll = () => {
+    if (selectedLibraryIds.size === library.length) {
+      setSelectedLibraryIds(new Set());
+    } else {
+      setSelectedLibraryIds(new Set(library.map(a => a.id)));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    const next = new Set(selectedLibraryIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedLibraryIds(next);
+  };
+
+  const handleBulkExport = () => {
+    if (selectedLibraryIds.size > 0) {
+      const selectedAssets = library.filter(a => selectedLibraryIds.has(a.id));
+      exportKit(selectedAssets);
+    } else {
+      exportKit();
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedLibraryIds.size > 0) {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (selectedLibraryIds.size > 0) {
+      await handleBulkRemoveFromLibrary(Array.from(selectedLibraryIds));
+      setSelectedLibraryIds(new Set());
+      setShowDeleteModal(false);
+    }
+  };
+
+  const handleGenerate = async (count: number = 1) => {
     setIsGenerating(true);
+    setGeneratingCount(count);
     setErrorMsg(null);
     setVariations([]);
     
     try {
-      // Generate 3 variations concurrently
-      const promises = [1, 2, 3].map(async (num) => {
+      // Generate requested number of variations concurrently
+      const promises = Array.from({ length: count }, (_, i) => i + 1).map(async (num) => {
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...params, variationLabel: `Variation ${num}` })
+          body: JSON.stringify({ ...params, variationLabel: count > 1 ? `Variation ${num}` : 'Variation' })
         });
         
         if (!response.ok) {
@@ -50,7 +96,7 @@ export default function App() {
         
         return {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
-          name: `SFX - Var ${num}`,
+          name: count > 1 ? `SFX - Var ${num}` : `SFX`,
           prompt: params.prompt,
           audioBase64: data.audioBase64,
           mimeType: data.mimeType,
@@ -99,9 +145,11 @@ export default function App() {
         {/* Sticky Glassmorphic Header */}
         <header className="px-5 py-4 border-b border-white/[0.04] bg-black/80 backdrop-blur-xl flex items-center justify-between z-35 shrink-0 sticky top-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center text-black shadow-md shadow-white/5">
-              <Music className="w-4 h-4 stroke-[2.5]" />
-            </div>
+            <img 
+              src="https://pub-e482c2dbbb984c3c87ecdd8ae3a92183.r2.dev/LIBRARY/images/CELESTIAL%20LIBRARY%20ICON.jpg" 
+              alt="Library Cues Logo"
+              className="w-8 h-8 rounded-lg object-cover shadow-md shadow-white/5"
+            />
             <div>
               <h1 className="text-sm font-bold tracking-tight text-neutral-100 leading-tight">Library Cues</h1>
               <p className="text-[10px] text-neutral-500 font-medium tracking-wide uppercase">Sound engine</p>
@@ -179,7 +227,7 @@ export default function App() {
                     <div className="flex flex-col gap-3">
                       {isGenerating ? (
                         <>
-                          {[1, 2, 3].map((i) => (
+                          {Array.from({ length: generatingCount }).map((_, i) => (
                             <div key={`skeleton-${i}`} className="p-4 rounded-2xl bg-neutral-900/35 border border-white/[0.04] backdrop-blur-xl relative flex flex-col animate-pulse">
                               <div className="flex items-center justify-between mb-3.5">
                                 <div className="flex items-center gap-2.5 w-full">
@@ -249,12 +297,58 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between px-1 mb-1">
+                      <button
+                        onClick={handleToggleSelectAll}
+                        className="flex items-center gap-2 text-[11px] font-bold text-neutral-400 hover:text-white transition-colors uppercase tracking-wider cursor-pointer"
+                      >
+                        {selectedLibraryIds.size === library.length ? (
+                          <CheckSquare className="w-4 h-4" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
+                        Select All
+                      </button>
+
+                      <AnimatePresence>
+                        {selectedLibraryIds.size > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="flex items-center gap-2"
+                          >
+                            <span className="text-[10px] text-neutral-500 font-medium tracking-wide">
+                              {selectedLibraryIds.size} selected
+                            </span>
+                            <button
+                              onClick={handleBulkDelete}
+                              className="w-7 h-7 flex items-center justify-center rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                              title="Delete Selected"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={handleBulkExport}
+                              className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold bg-white text-black rounded-full hover:bg-neutral-200 transition-colors cursor-pointer"
+                              title="Export Selected"
+                            >
+                              <Download className="w-3 h-3" />
+                              Export
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     {library.map(asset => (
                       <AudioWaveform 
                         key={asset.id} 
                         asset={asset}
                         onReject={() => handleRemoveFromLibrary(asset.id)}
                         onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
+                        isSelected={selectedLibraryIds.has(asset.id)}
+                        onToggleSelect={() => handleToggleSelect(asset.id)}
                       />
                     ))}
                   </div>
@@ -263,6 +357,12 @@ export default function App() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Footer */}
+        <footer className="w-full py-8 pb-28 text-center flex flex-col items-center justify-center gap-2 mt-auto border-t border-white/[0.04]">
+          <p className="text-sm font-medium tracking-wide text-neutral-400">Ⓢ SEN</p>
+          <p className="text-xs text-neutral-500">An Experience by SEIHouse Productions LLC</p>
+        </footer>
 
         {/* Floating Glassmorphic Bottom Tab Bar */}
         <div className="absolute bottom-0 left-0 right-0 h-[72px] bg-black/85 border-t border-white/[0.04] backdrop-blur-xl flex items-center justify-around px-6 pb-4 z-40 shrink-0">
@@ -309,6 +409,48 @@ export default function App() {
         </div>
 
       </div>
+
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-neutral-900 border border-white/[0.04] p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-2">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-rose-500" />
+                  Delete Selected Assets?
+                </h2>
+                <p className="text-sm text-neutral-400 leading-relaxed">
+                  Are you sure you want to delete {selectedLibraryIds.size} asset{selectedLibraryIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-2.5 px-4 bg-neutral-800 text-white text-sm font-semibold rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmBulkDelete}
+                  className="flex-1 py-2.5 px-4 bg-rose-600/90 text-white text-sm font-semibold rounded-xl hover:bg-rose-500 transition-colors cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

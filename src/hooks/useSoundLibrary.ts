@@ -44,16 +44,24 @@ export function useSoundLibrary() {
     await deleteSound(id);
   };
 
+  const handleBulkRemoveFromLibrary = async (ids: string[]) => {
+    setLibrary(prev => prev.filter(v => !ids.includes(v.id)));
+    for (const id of ids) {
+      await deleteSound(id);
+    }
+  };
+
   const handleRenameLibraryAsset = async (id: string, newName: string) => {
     setLibrary(prev => prev.map(a => a.id === id ? { ...a, name: newName } : a));
     await updateSoundName(id, newName);
   };
 
-  const exportKit = async () => {
-    if (library.length === 0) return;
+  const exportKit = async (assetsToExport?: SoundAsset[]) => {
+    const assets = assetsToExport && assetsToExport.length > 0 ? assetsToExport : library;
+    if (assets.length === 0) return;
     
     const zip = new JSZip();
-    library.forEach((asset) => {
+    assets.forEach((asset) => {
       const fileName = `${asset.name.replace(/\s+/g, '_')}.wav`;
       zip.file(`Sounds/${fileName}`, asset.audioBase64, { base64: true });
     });
@@ -66,6 +74,7 @@ export function useSoundLibrary() {
     library,
     handleKeep,
     handleRemoveFromLibrary,
+    handleBulkRemoveFromLibrary,
     handleRenameLibraryAsset,
     exportKit
   };
