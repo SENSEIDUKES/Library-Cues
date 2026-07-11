@@ -1,12 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { GenerationParams } from '../types';
-import { Sparkles, Repeat } from 'lucide-react';
+import { Sparkles, Repeat, Scissors, Activity, ArrowRightFromLine, ArrowLeftToLine } from 'lucide-react';
 
 interface GenerationControlsProps {
   params: GenerationParams;
   onChange: (params: GenerationParams) => void;
-  onGenerate: (count: number) => void;
+  onGenerate: (count: number, useCache: boolean) => void;
   isGenerating: boolean;
 }
 
@@ -122,44 +122,155 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </button>
       </div>
 
-      {/* Primary Action Buttons */}
-      <div className="flex gap-3 mt-2">
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onGenerate(1)}
-          disabled={isGenerating || !params.prompt.trim()}
-          className="flex-1 py-4 px-4 bg-white text-black font-semibold rounded-2xl hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-white/5 font-sans cursor-pointer select-none"
+      {/* Trim Silence Toggle */}
+      <div className="flex items-center justify-between bg-neutral-900/40 border border-white/[0.04] p-4 rounded-2xl -mt-3">
+        <div className="flex items-center gap-3 text-sm text-neutral-200">
+          <div className="w-8 h-8 rounded-full bg-neutral-800/50 flex items-center justify-center text-neutral-400">
+            <Scissors className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-medium">Trim Silence</div>
+            <div className="text-[11px] text-neutral-500">Automatically remove silence from start and end</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => updateParam('trimSilence', !params.trimSilence)}
+          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
+            params.trimSilence ? 'bg-white' : 'bg-neutral-700'
+          }`}
         >
-          {isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-              <span className="tracking-tight text-sm">Synthesizing...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4 text-neutral-900 fill-neutral-900" />
-              <span className="tracking-tight text-sm">Synthesize</span>
-            </>
-          )}
-        </motion.button>
+          <motion.div
+            layout
+            className={`w-5 h-5 rounded-full shadow-sm ${
+              params.trimSilence ? 'bg-black translate-x-5' : 'bg-neutral-300 translate-x-0'
+            }`}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          />
+        </button>
+      </div>
+
+      {/* Normalize Loudness Toggle */}
+      <div className="flex items-center justify-between bg-neutral-900/40 border border-white/[0.04] p-4 rounded-2xl -mt-3">
+        <div className="flex items-center gap-3 text-sm text-neutral-200">
+          <div className="w-8 h-8 rounded-full bg-neutral-800/50 flex items-center justify-center text-neutral-400">
+            <Activity className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-medium">Normalize Loudness</div>
+            <div className="text-[11px] text-neutral-500">Ensure consistent volume levels (EBU R128)</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => updateParam('normalizeLoudness', !params.normalizeLoudness)}
+          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
+            params.normalizeLoudness ? 'bg-white' : 'bg-neutral-700'
+          }`}
+        >
+          <motion.div
+            layout
+            className={`w-5 h-5 rounded-full shadow-sm ${
+              params.normalizeLoudness ? 'bg-black translate-x-5' : 'bg-neutral-300 translate-x-0'
+            }`}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          />
+        </button>
+      </div>
+
+      {/* Fade In & Out */}
+      <div className="bg-neutral-900/40 border border-white/[0.04] p-4 rounded-2xl -mt-3 flex flex-col gap-4">
+        {/* Fade In */}
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center gap-2 text-neutral-300">
+              <ArrowRightFromLine className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Fade In</span>
+            </div>
+            <span className="font-mono text-neutral-400 bg-black/30 px-2 py-0.5 rounded text-xs">{params.fadeIn.toFixed(1)}s</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            step="0.1"
+            value={params.fadeIn}
+            onChange={(e) => updateParam('fadeIn', parseFloat(e.target.value))}
+            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        {/* Fade Out */}
+        <div className="flex flex-col gap-3 pt-2 border-t border-white/[0.04]">
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center gap-2 text-neutral-300">
+              <ArrowLeftToLine className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Fade Out</span>
+            </div>
+            <span className="font-mono text-neutral-400 bg-black/30 px-2 py-0.5 rounded text-xs">{params.fadeOut.toFixed(1)}s</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            step="0.1"
+            value={params.fadeOut}
+            onChange={(e) => updateParam('fadeOut', parseFloat(e.target.value))}
+            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Primary Action Buttons */}
+      <div className="flex flex-col gap-3 mt-2">
+        <div className="flex gap-3">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onGenerate(1, false)}
+            disabled={isGenerating || !params.prompt.trim()}
+            className="flex-1 py-4 px-4 bg-white text-black font-semibold rounded-2xl hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-white/5 font-sans cursor-pointer select-none"
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                <span className="tracking-tight text-sm">Synthesizing...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-neutral-900 fill-neutral-900" />
+                <span className="tracking-tight text-sm">Generate New (1)</span>
+              </>
+            )}
+          </motion.button>
+  
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onGenerate(3, false)}
+            disabled={isGenerating || !params.prompt.trim()}
+            className="flex-1 py-4 px-4 bg-neutral-800 text-white font-semibold rounded-2xl hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-black/20 font-sans cursor-pointer select-none border border-white/[0.04]"
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                <span className="tracking-tight text-sm">Generating...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-white fill-white" />
+                <span className="tracking-tight text-sm">Variants (3)</span>
+              </>
+            )}
+          </motion.button>
+        </div>
 
         <motion.button
           whileTap={{ scale: 0.98 }}
-          onClick={() => onGenerate(3)}
+          onClick={() => onGenerate(1, true)}
           disabled={isGenerating || !params.prompt.trim()}
-          className="flex-1 py-4 px-4 bg-neutral-800 text-white font-semibold rounded-2xl hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 shadow-lg shadow-black/20 font-sans cursor-pointer select-none border border-white/[0.04]"
+          className="w-full py-3 px-4 bg-transparent text-neutral-400 font-semibold rounded-2xl hover:bg-neutral-900/50 hover:text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 font-sans cursor-pointer select-none border border-neutral-800 border-dashed"
         >
-          {isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              <span className="tracking-tight text-sm">Generating...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4 text-white fill-white" />
-              <span className="tracking-tight text-sm">Variants (3)</span>
-            </>
-          )}
+          <Repeat className="w-3.5 h-3.5" />
+          <span className="tracking-tight text-xs uppercase">Reuse Previous Generation</span>
         </motion.button>
       </div>
     </div>

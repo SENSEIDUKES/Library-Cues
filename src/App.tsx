@@ -11,7 +11,11 @@ export default function App() {
     prompt: '',
     durationSeconds: 4.0,
     promptInfluence: 0.7,
-    loop: false
+    loop: false,
+    trimSilence: false,
+    normalizeLoudness: false,
+    fadeIn: 0,
+    fadeOut: 0
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
@@ -25,12 +29,118 @@ export default function App() {
     handleRemoveFromLibrary,
     handleBulkRemoveFromLibrary,
     handleRenameLibraryAsset,
+    handleUpdateAsset,
     exportKit
   } = useSoundLibrary();
 
   const [activeTab, setActiveTab] = useState<'synthesize' | 'library'>('synthesize');
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<string>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const handleTrimSilence = async (asset: SoundAsset, isLibraryAsset: boolean) => {
+    try {
+      const response = await fetch('/api/trim-silence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioBase64: asset.audioBase64, mimeType: asset.mimeType })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to trim silence');
+      }
+      const data = await response.json();
+      const updatedAsset: SoundAsset = { 
+        ...asset, 
+        audioBase64: data.audioBase64,
+        previousAudioBase64: asset.audioBase64 
+      };
+
+      if (isLibraryAsset) {
+        await handleUpdateAsset(updatedAsset);
+      } else {
+        setVariations(variations.map(a => a.id === asset.id ? updatedAsset : a));
+      }
+    } catch (err: any) {
+      console.error('Error trimming silence:', err);
+      setErrorMsg(err.message || 'Error trimming silence.');
+    }
+  };
+
+  const handleNormalizeLoudness = async (asset: SoundAsset, isLibraryAsset: boolean) => {
+    try {
+      const response = await fetch('/api/normalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioBase64: asset.audioBase64, mimeType: asset.mimeType })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to normalize loudness');
+      }
+      const data = await response.json();
+      const updatedAsset: SoundAsset = { 
+        ...asset, 
+        audioBase64: data.audioBase64,
+        previousAudioBase64: asset.audioBase64 
+      };
+
+      if (isLibraryAsset) {
+        await handleUpdateAsset(updatedAsset);
+      } else {
+        setVariations(variations.map(a => a.id === asset.id ? updatedAsset : a));
+      }
+    } catch (err: any) {
+      console.error('Error normalizing loudness:', err);
+      setErrorMsg(err.message || 'Error normalizing loudness.');
+    }
+  };
+
+  const handleFade = async (asset: SoundAsset, isLibraryAsset: boolean) => {
+    if (params.fadeIn === 0 && params.fadeOut === 0) return;
+    try {
+      const response = await fetch('/api/fade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          audioBase64: asset.audioBase64, 
+          mimeType: asset.mimeType,
+          fadeIn: params.fadeIn,
+          fadeOut: params.fadeOut
+        })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fade audio');
+      }
+      const data = await response.json();
+      const updatedAsset: SoundAsset = { 
+        ...asset, 
+        audioBase64: data.audioBase64,
+        previousAudioBase64: asset.audioBase64 
+      };
+
+      if (isLibraryAsset) {
+        await handleUpdateAsset(updatedAsset);
+      } else {
+        setVariations(variations.map(a => a.id === asset.id ? updatedAsset : a));
+      }
+    } catch (err: any) {
+      console.error('Error fading audio:', err);
+      setErrorMsg(err.message || 'Error fading audio.');
+    }
+  };
+
+  const handleUndoTrim = async (asset: SoundAsset, isLibraryAsset: boolean) => {
+    if (!asset.previousAudioBase64) return;
+    const updatedAsset: SoundAsset = {
+      ...asset,
+      audioBase64: asset.previousAudioBase64,
+      previousAudioBase64: undefined
+    };
+
+    if (isLibraryAsset) {
+      await handleUpdateAsset(updatedAsset);
+    } else {
+      setVariations(variations.map(a => a.id === asset.id ? updatedAsset : a));
+    }
+  };
 
   const handleToggleSelectAll = () => {
     if (selectedLibraryIds.size === library.length) {
@@ -73,7 +183,7 @@ export default function App() {
     }
   };
 
-  const handleGenerate = async (count: number = 1) => {
+  const handleGenerate = async (count: number = 1, useCache: boolean = false) => {
     setIsGenerating(true);
     setGeneratingCount(count);
     setErrorMsg(null);
@@ -85,7 +195,11 @@ export default function App() {
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...params, variationLabel: count > 1 ? `Variation ${num}` : 'Variation' })
+          body: JSON.stringify({ 
+            ...params, 
+            useCache, 
+            variationLabel: count > 1 ? `Variation ${num}` : 'Variation' 
+          })
         });
         
         if (!response.ok) {
@@ -261,6 +375,10 @@ export default function App() {
                               onKeep={() => handleKeep(asset)}
                               onReject={() => handleReject(asset.id)}
                               onRename={(name) => handleRenameVariation(asset.id, name)}
+                              onTrimSilence={() => handleTrimSilence(asset, false)}
+                              onUndoTrim={() => handleUndoTrim(asset, false)}
+                              onNormalizeLoudness={() => handleNormalizeLoudness(asset, false)}
+                              onFadeAudio={() => handleFade(asset, false)}
                               isKept={isKept}
                             />
                           );
@@ -347,6 +465,10 @@ export default function App() {
                         asset={asset}
                         onReject={() => handleRemoveFromLibrary(asset.id)}
                         onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
+                        onTrimSilence={() => handleTrimSilence(asset, true)}
+                        onUndoTrim={() => handleUndoTrim(asset, true)}
+                        onNormalizeLoudness={() => handleNormalizeLoudness(asset, true)}
+                        onFadeAudio={() => handleFade(asset, true)}
                         isSelected={selectedLibraryIds.has(asset.id)}
                         onToggleSelect={() => handleToggleSelect(asset.id)}
                       />

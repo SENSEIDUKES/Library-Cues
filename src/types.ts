@@ -9,6 +9,8 @@ export interface SoundAsset {
   loop?: boolean;
   sampleRate?: number;
   fileSize?: number;
+  previousAudioBase64?: string;
+  peaks?: number[];
 }
 
 // Categories and types removed as we map directly to API
@@ -18,4 +20,8 @@ export interface GenerationParams {
   durationSeconds: number;
   promptInfluence: number;
   loop: boolean;
+  trimSilence: boolean;
+  normalizeLoudness: boolean;
+  fadeIn: number;
+  fadeOut: number;
 }

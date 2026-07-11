@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAudioPlayer } from '@seihouse/audio-player';
 import { decodeAudioBase64, generateFallbackPeaks } from '../lib/audio';
 import { SoundAsset } from '../types';
+import { saveSound } from '../lib/storage';
 
 let activeAssetId: string | null = null;
 const pauseCallbacks = new Map<string, () => void>();
@@ -54,11 +55,27 @@ export function useAudioWaveform(asset: SoundAsset) {
 
     const decodeAudio = async () => {
       try {
+        if (asset.peaks && asset.peaks.length > 0) {
+          if (active) {
+            setPeaks(asset.peaks);
+            setIsDecoding(false);
+          }
+          return;
+        }
+
         const decoded = await decodeAudioBase64(asset.audioBase64);
         if (active) {
           setPeaks(decoded.peaks);
           setSampleRate(decoded.sampleRate);
           setOfflineDuration(decoded.duration);
+          
+          // Cache peaks on the asset object to avoid re-decoding
+          asset.peaks = decoded.peaks;
+          if (asset.sampleRate === undefined) asset.sampleRate = decoded.sampleRate;
+          if (asset.durationSeconds === undefined) asset.durationSeconds = decoded.duration;
+          
+          // Persist the peaks to IndexedDB to avoid re-decoding on next load
+          saveSound(asset).catch(e => console.error("Failed to persist peaks", e));
         }
       } catch (err) {
         console.error("Peak extraction failed, using fallback visual profile", err);

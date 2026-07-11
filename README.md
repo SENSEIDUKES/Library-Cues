@@ -19,6 +19,7 @@ When diving into atmospheric storytelling, custom-generated sound cues (like spe
 ## ✨ Features
 
 - **Prompt-to-SFX Synthesis Engine**: Powered by ElevenLabs' advanced audio synthesis API to produce highly detailed, customized sound effects from natural language prompts.
+- **Audio Processing**: Fine-tune generated audio with features to automatically trim silence, normalize loudness (EBU R128), and apply precise fade-in/fade-out transitions. Includes full undo support.
 - **Side-by-Side Variations**: Every generation action synthesizes three concurrent, distinct audio variations to compare, audition, and pick from.
 - **Precision Parameters**: Granular control over parameters like prompt influence, precise duration (seconds), and seamless loop generation.
 - **Waveform Analytics & Player**: Powered by `wavesurfer.js` to render elegant, dynamic interactive waveforms with real-time tracking, speed playbacks, and audio controls.

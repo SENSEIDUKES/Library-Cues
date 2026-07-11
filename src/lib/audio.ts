@@ -4,40 +4,71 @@ export interface DecodedAudioData {
   duration: number;
 }
 
-export const decodeAudioBase64 = async (audioBase64: string, numBars: number = 100): Promise<DecodedAudioData> => {
-  const binaryString = window.atob(audioBase64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  
-  const offlineCtx = new (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)(1, 1, 44100);
-  const audioBuffer = await offlineCtx.decodeAudioData(bytes.buffer);
-  const channelData = audioBuffer.getChannelData(0);
-  
-  const blockSize = Math.floor(channelData.length / numBars);
-  const extractedPeaks: number[] = [];
-  
-  for (let i = 0; i < numBars; i++) {
-    let max = 0;
-    const start = i * blockSize;
-    const end = start + blockSize;
-    for (let j = start; j < end; j++) {
-      const val = Math.abs(channelData[j]);
-      if (val > max) max = val;
-    }
-    extractedPeaks.push(max);
-  }
-  
-  const maxPeak = Math.max(...extractedPeaks);
-  const normalized = maxPeak > 0 ? extractedPeaks.map(p => p / maxPeak) : extractedPeaks;
+// Queue system to prevent crashing when decoding 50+ audio files concurrently
+const MAX_CONCURRENT_DECODES = 3;
+let activeDecodes = 0;
+const decodeQueue: (() => void)[] = [];
 
-  return {
-    peaks: normalized,
-    sampleRate: audioBuffer.sampleRate,
-    duration: audioBuffer.duration
-  };
+const acquireDecodeSlot = (): Promise<void> => {
+  return new Promise(resolve => {
+    if (activeDecodes < MAX_CONCURRENT_DECODES) {
+      activeDecodes++;
+      resolve();
+    } else {
+      decodeQueue.push(resolve);
+    }
+  });
+};
+
+const releaseDecodeSlot = () => {
+  if (decodeQueue.length > 0) {
+    const next = decodeQueue.shift();
+    if (next) next();
+  } else {
+    activeDecodes--;
+  }
+};
+
+export const decodeAudioBase64 = async (audioBase64: string, numBars: number = 100): Promise<DecodedAudioData> => {
+  await acquireDecodeSlot();
+  
+  try {
+    const binaryString = window.atob(audioBase64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    const offlineCtx = new (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)(1, 1, 44100);
+    const audioBuffer = await offlineCtx.decodeAudioData(bytes.buffer);
+    const channelData = audioBuffer.getChannelData(0);
+    
+    const blockSize = Math.floor(channelData.length / numBars);
+    const extractedPeaks: number[] = [];
+    
+    for (let i = 0; i < numBars; i++) {
+      let max = 0;
+      const start = i * blockSize;
+      const end = start + blockSize;
+      for (let j = start; j < end; j++) {
+        const val = Math.abs(channelData[j]);
+        if (val > max) max = val;
+      }
+      extractedPeaks.push(max);
+    }
+    
+    const maxPeak = Math.max(...extractedPeaks);
+    const normalized = maxPeak > 0 ? extractedPeaks.map(p => p / maxPeak) : extractedPeaks;
+
+    return {
+      peaks: normalized,
+      sampleRate: audioBuffer.sampleRate,
+      duration: audioBuffer.duration
+    };
+  } finally {
+    releaseDecodeSlot();
+  }
 };
 
 export const generateFallbackPeaks = (numBars: number = 100): number[] => {

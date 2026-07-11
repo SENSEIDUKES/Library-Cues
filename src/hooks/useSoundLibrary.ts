@@ -56,13 +56,27 @@ export function useSoundLibrary() {
     await updateSoundName(id, newName);
   };
 
+  const handleUpdateAsset = async (updatedAsset: SoundAsset) => {
+    setLibrary(prev => prev.map(a => a.id === updatedAsset.id ? updatedAsset : a));
+    await saveSound(updatedAsset);
+  };
+
   const exportKit = async (assetsToExport?: SoundAsset[]) => {
     const assets = assetsToExport && assetsToExport.length > 0 ? assetsToExport : library;
     if (assets.length === 0) return;
     
     const zip = new JSZip();
     assets.forEach((asset) => {
-      const fileName = `${asset.name.replace(/\s+/g, '_')}.wav`;
+      let ext = 'mp3';
+      if (asset.mimeType?.includes('wav')) {
+        ext = 'wav';
+      } else if (asset.mimeType?.includes('ogg')) {
+        ext = 'ogg';
+      } else if (asset.mimeType?.includes('aac')) {
+        ext = 'aac';
+      }
+      
+      const fileName = `${asset.name.replace(/\s+/g, '_')}.${ext}`;
       zip.file(`Sounds/${fileName}`, asset.audioBase64, { base64: true });
     });
     
@@ -76,6 +90,7 @@ export function useSoundLibrary() {
     handleRemoveFromLibrary,
     handleBulkRemoveFromLibrary,
     handleRenameLibraryAsset,
+    handleUpdateAsset,
     exportKit
   };
 }

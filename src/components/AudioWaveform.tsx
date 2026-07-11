@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, Download, Trash2, CheckCircle, Circle, Volume2, Activity, Info, CheckSquare, Square } from 'lucide-react';
+import { Play, Pause, Download, Trash2, CheckCircle, Circle, Volume2, Activity, Info, CheckSquare, Square, Scissors, Loader2, Undo2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SoundAsset } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
@@ -10,15 +10,20 @@ interface AudioWaveformProps {
   onKeep?: () => void;
   onReject?: () => void;
   onRename?: (newName: string) => void;
+  onTrimSilence?: () => Promise<void>;
+  onUndoTrim?: () => Promise<void>;
+  onNormalizeLoudness?: () => Promise<void>;
+  onFadeAudio?: () => Promise<void>;
   isKept?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   className?: string;
 }
 
-export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, isSelected, onToggleSelect, className }: AudioWaveformProps) {
+export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence, onUndoTrim, onNormalizeLoudness, onFadeAudio, isKept, isSelected, onToggleSelect, className }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [isTrimming, setIsTrimming] = useState(false);
   
   const {
     audioRef,
@@ -108,7 +113,14 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, isSel
   };
 
   const handleDownload = () => {
-    const extension = asset.mimeType.includes('mpeg') ? 'mp3' : 'wav';
+    let extension = 'mp3';
+    if (asset.mimeType?.includes('wav')) {
+      extension = 'wav';
+    } else if (asset.mimeType?.includes('ogg')) {
+      extension = 'ogg';
+    } else if (asset.mimeType?.includes('aac')) {
+      extension = 'aac';
+    }
     const link = document.createElement('a');
     link.href = `data:${asset.mimeType};base64,${asset.audioBase64}`;
     link.download = `${asset.name.replace(/\s+/g, '_')}.${extension}`;
@@ -242,6 +254,82 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, isKept, isSel
               />
               <span className="text-[9px] font-mono text-neutral-500 w-5 text-right">{playbackRate.toFixed(1)}x</span>
             </div>
+
+            {onTrimSilence && !asset.previousAudioBase64 && (
+              <button
+                onClick={async () => {
+                  setIsTrimming(true);
+                  try {
+                    await onTrimSilence();
+                  } finally {
+                    setIsTrimming(false);
+                  }
+                }}
+                disabled={isTrimming}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                title="Trim Silence"
+              >
+                {isTrimming ? <Loader2 className="w-3 h-3 text-neutral-400 animate-spin" /> : <Scissors className="w-3 h-3 text-neutral-400" />}
+                <span className="text-[9px] font-sans font-medium text-neutral-400">Trim</span>
+              </button>
+            )}
+
+            {onUndoTrim && asset.previousAudioBase64 && (
+              <button
+                onClick={async () => {
+                  setIsTrimming(true);
+                  try {
+                    await onUndoTrim();
+                  } finally {
+                    setIsTrimming(false);
+                  }
+                }}
+                disabled={isTrimming}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                title="Undo Action"
+              >
+                {isTrimming ? <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" /> : <Undo2 className="w-3 h-3 text-emerald-400" />}
+                <span className="text-[9px] font-sans font-medium text-emerald-400">Undo Action</span>
+              </button>
+            )}
+
+            {onNormalizeLoudness && !asset.previousAudioBase64 && (
+              <button
+                onClick={async () => {
+                  setIsTrimming(true);
+                  try {
+                    await onNormalizeLoudness();
+                  } finally {
+                    setIsTrimming(false);
+                  }
+                }}
+                disabled={isTrimming}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                title="Normalize Loudness"
+              >
+                <Activity className="w-3 h-3 text-neutral-400" />
+                <span className="text-[9px] font-sans font-medium text-neutral-400">Normalize</span>
+              </button>
+            )}
+
+            {onFadeAudio && !asset.previousAudioBase64 && (
+              <button
+                onClick={async () => {
+                  setIsTrimming(true);
+                  try {
+                    await onFadeAudio();
+                  } finally {
+                    setIsTrimming(false);
+                  }
+                }}
+                disabled={isTrimming}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                title="Apply Fade In/Out (from Synthesis Settings)"
+              >
+                <svg className="w-3 h-3 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
+                <span className="text-[9px] font-sans font-medium text-neutral-400">Apply Fade</span>
+              </button>
+            )}
           </div>
           
           <div className="flex items-center gap-2 text-[9px] font-mono text-neutral-500">
