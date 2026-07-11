@@ -9,6 +9,10 @@ describe('GenerationControls', () => {
     durationSeconds: 4,
     promptInfluence: 0.7,
     loop: false,
+    trimSilence: false,
+    normalizeLoudness: false,
+    fadeIn: 0,
+    fadeOut: 0,
   };
 
   it('renders the generation button and prompt input', () => {
@@ -22,7 +26,7 @@ describe('GenerationControls', () => {
     );
 
     expect(screen.getByRole('textbox')).toHaveValue('A test prompt');
-    expect(screen.getByRole('button', { name: /Synthesize Sounds/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate New/i })).toBeInTheDocument();
   });
 
   it('disables the generate button when isGenerating is true', () => {
@@ -35,7 +39,7 @@ describe('GenerationControls', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /Synthesizing audio.../i });
+    const button = screen.getByRole('button', { name: /Synthesizing.../i });
     expect(button).toBeDisabled();
   });
 
@@ -50,7 +54,7 @@ describe('GenerationControls', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /Synthesize Sounds/i });
+    const button = screen.getByRole('button', { name: /Generate New/i });
     fireEvent.click(button);
     expect(handleGenerate).toHaveBeenCalledTimes(1);
   });
@@ -111,7 +115,7 @@ describe('GenerationControls', () => {
 
   it('updates loop when toggle is clicked', () => {
     const handleChange = vi.fn();
-    const { container } = render(
+    render(
       <GenerationControls
         params={defaultParams}
         onChange={handleChange}
@@ -120,14 +124,7 @@ describe('GenerationControls', () => {
       />
     );
 
-    const toggleButton = screen.getByRole('button', { hidden: true, name: '' });
-    // Since there are multiple buttons, we can find by nearest class or just click the toggle button.
-    // The toggle button is the one with w-11 class. Let's find it.
-    const buttons = screen.getAllByRole('button');
-    const loopToggle = buttons.find(b => b.className.includes('w-11'));
-    if (loopToggle) {
-      fireEvent.click(loopToggle);
-    }
+    fireEvent.click(screen.getByRole('button', { name: /Toggle seamless loop/i }));
     expect(handleChange).toHaveBeenCalledWith({ ...defaultParams, loop: true });
   });
 });

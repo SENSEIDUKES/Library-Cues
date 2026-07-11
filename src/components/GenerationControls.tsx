@@ -107,6 +107,7 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          aria-label="Toggle seamless loop"
           onClick={() => updateParam('loop', !params.loop)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.loop ? 'bg-white' : 'bg-neutral-700'
@@ -135,6 +136,7 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          aria-label="Toggle trim silence"
           onClick={() => updateParam('trimSilence', !params.trimSilence)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.trimSilence ? 'bg-white' : 'bg-neutral-700'
@@ -163,6 +165,7 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          aria-label="Toggle normalize loudness"
           onClick={() => updateParam('normalizeLoudness', !params.normalizeLoudness)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.normalizeLoudness ? 'bg-white' : 'bg-neutral-700'

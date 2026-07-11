@@ -1,7 +1,14 @@
+import { base64ByteLength } from './mime';
+
 export interface DecodedAudioData {
   peaks: number[];
   sampleRate: number;
   duration: number;
+}
+
+export interface AudioInspection extends DecodedAudioData {
+  durationMs: number;
+  fileSizeBytes: number;
 }
 
 // Queue system to prevent crashing when decoding 50+ audio files concurrently
@@ -69,6 +76,15 @@ export const decodeAudioBase64 = async (audioBase64: string, numBars: number = 1
   } finally {
     releaseDecodeSlot();
   }
+};
+
+export const inspectAudioBase64 = async (audioBase64: string): Promise<AudioInspection> => {
+  const decoded = await decodeAudioBase64(audioBase64);
+  return {
+    ...decoded,
+    durationMs: Math.round(decoded.duration * 1000),
+    fileSizeBytes: base64ByteLength(audioBase64),
+  };
 };
 
 export const generateFallbackPeaks = (numBars: number = 100): number[] => {

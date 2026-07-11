@@ -11,8 +11,8 @@ This application serves as a dedicated sound engine companion for readers, autho
 When diving into atmospheric storytelling, custom-generated sound cues (like spell effects, combat clashing, wind rustling, sci-fi hums, or ambient drops) can dramatically enhance the reading immersion. Library Cues makes it effortless to:
 - Generate highly tailored sound effects matching specific scene descriptions or themes from light novels.
 - Audition and fine-tune multiple generated sound variations side-by-side.
-- Organize sound cues into a custom-named "Saved Kit" library stored locally in the browser.
-- Export entire curated cue packs directly as compressed ZIP archives to combine with reading apps or multimedia novel projects.
+- Classify generated audio as structured, Light-Novels-compatible cue assets stored locally in the browser.
+- Export approved cues—or an explicit selection of candidates—as a manifest-backed cue kit.
 
 ---
 
@@ -23,8 +23,9 @@ When diving into atmospheric storytelling, custom-generated sound cues (like spe
 - **Side-by-Side Variations**: Every generation action synthesizes three concurrent, distinct audio variations to compare, audition, and pick from.
 - **Precision Parameters**: Granular control over parameters like prompt influence, precise duration (seconds), and seamless loop generation.
 - **Waveform Analytics & Player**: Powered by `wavesurfer.js` to render elegant, dynamic interactive waveforms with real-time tracking, speed playbacks, and audio controls.
-- **User-Authored Saved Kits**: Persist your curated cues safely across sessions via `localStorage`. Rename individual sound files on-the-fly to construct structured soundboards.
-- **Full ZIP Export**: Bundle and download your entire saved kit library instantly with a single click.
+- **Structured Cue Curation**: Review identity, playback, narrative matching, category-specific metadata, provenance, and approval state before a generated variation enters the library.
+- **IndexedDB Persistence**: Persist audio and metadata safely across sessions, with an idempotent migration for legacy `localStorage` and loose IndexedDB records.
+- **Manifest Cue-Kit Export**: Export `library-cues-kit/audio/*` plus `library-cues-kit/cue-manifest.json`; full export defaults to approved cues, while explicit selections may include candidates.
 
 ---
 

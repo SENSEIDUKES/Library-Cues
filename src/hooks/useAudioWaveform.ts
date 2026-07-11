@@ -2,10 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAudioPlayer } from '@seihouse/audio-player';
 import { decodeAudioBase64, generateFallbackPeaks } from '../lib/audio';
 import { SoundAsset } from '../types';
-import { saveSound } from '../lib/storage';
-
-let activeAssetId: string | null = null;
-const pauseCallbacks = new Map<string, () => void>();
+import { base64ByteLength } from '../lib/mime';
 
 export function useAudioWaveform(asset: SoundAsset) {
   const audioUrl = `data:${asset.mimeType};base64,${asset.audioBase64}`;
@@ -15,18 +12,10 @@ export function useAudioWaveform(asset: SoundAsset) {
     currentTime,
     duration: engineDuration,
     toggle: togglePlayInternal,
-    pause,
     seek,
     volume,
     setVolume
   } = useAudioPlayer({ src: audioUrl });
-
-  useEffect(() => {
-    pauseCallbacks.set(asset.id, pause);
-    return () => {
-      pauseCallbacks.delete(asset.id);
-    };
-  }, [asset.id, pause]);
 
   const togglePlay = useCallback(() => {
     togglePlayInternal();
@@ -41,7 +30,7 @@ export function useAudioWaveform(asset: SoundAsset) {
   const displayDuration = engineDuration > 0 ? engineDuration : offlineDuration;
 
   useEffect(() => {
-    const bytesCount = asset.fileSize || Math.round((asset.audioBase64.length * 3) / 4);
+    const bytesCount = asset.fileSize ?? base64ByteLength(asset.audioBase64);
     if (bytesCount < 1024) {
       setFileSizeStr(`${bytesCount} B`);
     } else {
@@ -68,14 +57,6 @@ export function useAudioWaveform(asset: SoundAsset) {
           setPeaks(decoded.peaks);
           setSampleRate(decoded.sampleRate);
           setOfflineDuration(decoded.duration);
-          
-          // Cache peaks on the asset object to avoid re-decoding
-          asset.peaks = decoded.peaks;
-          if (asset.sampleRate === undefined) asset.sampleRate = decoded.sampleRate;
-          if (asset.durationSeconds === undefined) asset.durationSeconds = decoded.duration;
-          
-          // Persist the peaks to IndexedDB to avoid re-decoding on next load
-          saveSound(asset).catch(e => console.error("Failed to persist peaks", e));
         }
       } catch (err) {
         console.error("Peak extraction failed, using fallback visual profile", err);

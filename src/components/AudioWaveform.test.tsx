@@ -41,11 +41,13 @@ describe('AudioWaveform', () => {
   });
 
   it('downloads when download button is clicked', () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<AudioWaveform asset={defaultAsset} />);
     
     const downloadButton = screen.getByTitle('Download');
     fireEvent.click(downloadButton);
-    // Hard to test actual download creation without mocking document.createElement
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
   });
 
   it('calls onKeep when keep button is clicked', () => {
