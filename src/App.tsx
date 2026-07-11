@@ -359,9 +359,10 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <footer className="w-full py-8 pb-28 text-center flex flex-col items-center justify-center gap-2 mt-auto border-t border-white/[0.04]">
+        <footer className="w-full py-8 pb-28 text-center flex flex-col items-center justify-center gap-1.5 mt-auto border-t border-white/[0.04]">
           <p className="text-sm font-medium tracking-wide text-neutral-400">Ⓢ SEN</p>
-          <p className="text-xs text-neutral-500">An Experience by SEIHouse Productions LLC</p>
+          <p className="text-xs text-neutral-500 font-medium">SEIHouse Expanded Novels</p>
+          <p className="text-[10px] text-neutral-600 uppercase tracking-widest mt-1">An Experience by SEIHouse Productions LLC</p>
         </footer>
 
         {/* Floating Glassmorphic Bottom Tab Bar */}
