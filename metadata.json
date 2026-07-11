@@ -1,0 +1,6 @@
+{
+  "name": "Library Cues",
+  "description": "Curated sound-effects engine with high-end mobile-first audio synthesis controls and saved preset kit library.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

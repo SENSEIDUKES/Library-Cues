@@ -1,0 +1,52 @@
+export interface DecodedAudioData {
+  peaks: number[];
+  sampleRate: number;
+  duration: number;
+}
+
+export const decodeAudioBase64 = async (audioBase64: string, numBars: number = 100): Promise<DecodedAudioData> => {
+  const binaryString = window.atob(audioBase64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  
+  const offlineCtx = new (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)(1, 1, 44100);
+  const audioBuffer = await offlineCtx.decodeAudioData(bytes.buffer);
+  const channelData = audioBuffer.getChannelData(0);
+  
+  const blockSize = Math.floor(channelData.length / numBars);
+  const extractedPeaks: number[] = [];
+  
+  for (let i = 0; i < numBars; i++) {
+    let max = 0;
+    const start = i * blockSize;
+    const end = start + blockSize;
+    for (let j = start; j < end; j++) {
+      const val = Math.abs(channelData[j]);
+      if (val > max) max = val;
+    }
+    extractedPeaks.push(max);
+  }
+  
+  const maxPeak = Math.max(...extractedPeaks);
+  const normalized = maxPeak > 0 ? extractedPeaks.map(p => p / maxPeak) : extractedPeaks;
+
+  return {
+    peaks: normalized,
+    sampleRate: audioBuffer.sampleRate,
+    duration: audioBuffer.duration
+  };
+};
+
+export const generateFallbackPeaks = (numBars: number = 100): number[] => {
+  const fallback: number[] = [];
+  let current = 0.5;
+  for (let i = 0; i < numBars; i++) {
+    current += (Math.random() - 0.5) * 0.2;
+    current = Math.max(0.1, Math.min(1.0, current));
+    fallback.push(current);
+  }
+  return fallback;
+};
