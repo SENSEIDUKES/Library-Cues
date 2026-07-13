@@ -40,6 +40,7 @@ const newInternalId = (): string =>
 
 export default function App() {
   const [params, setParams] = useState<GenerationParams>(defaultGenerationParams);
+  const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingCount, setGeneratingCount] = useState(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -269,6 +270,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...params,
+            elevenLabsApiKey,
             useCache,
             variationLabel: count > 1 ? `Variation ${number}` : 'Variation',
           }),
@@ -398,7 +400,14 @@ export default function App() {
             {activeTab === 'synthesize' ? (
               <motion.div key="synthesize-tab" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="p-5 flex flex-col gap-5">
                 <section className="bg-neutral-900/30 border border-white/[0.03] rounded-2xl p-4.5 backdrop-blur-md">
-                  <GenerationControls params={params} onChange={setParams} onGenerate={handleGenerate} isGenerating={isGenerating} />
+                  <GenerationControls
+                    params={params}
+                    onChange={setParams}
+                    onGenerate={handleGenerate}
+                    elevenLabsApiKey={elevenLabsApiKey}
+                    onElevenLabsApiKeyChange={setElevenLabsApiKey}
+                    isGenerating={isGenerating}
+                  />
                 </section>
                 {visibleError && (
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 bg-rose-950/20 border border-rose-900/40 rounded-2xl text-rose-200 text-[12px] flex items-start gap-2" role="alert">

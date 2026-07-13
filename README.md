@@ -43,14 +43,12 @@ When diving into atmospheric storytelling, custom-generated sound cues (like spe
 ## 🚀 Setup & Execution
 
 ### Prerequisite Environment Variables
-Before running, you must configure your API keys. Define them in a `.env` file at the root:
+Before running, you must configure your API keys. Define them in a `.env.local` file at the root (or use `.env`); the server loads either file and never exposes the key to the browser:
 
 ```env
 # ElevenLabs API Key for generating high-quality sound effects
 ELEVENLABS_API_KEY=your_eleven_labs_api_key
 
-# Gemini API Key (Required for server environment)
-GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### Installation

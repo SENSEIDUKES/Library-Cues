@@ -7,16 +7,44 @@ interface GenerationControlsProps {
   params: GenerationParams;
   onChange: (params: GenerationParams) => void;
   onGenerate: (count: number, useCache: boolean) => void;
+  elevenLabsApiKey: string;
+  onElevenLabsApiKeyChange: (value: string) => void;
   isGenerating: boolean;
 }
 
-export function GenerationControls({ params, onChange, onGenerate, isGenerating }: GenerationControlsProps) {
+export function GenerationControls({
+  params,
+  onChange,
+  onGenerate,
+  elevenLabsApiKey,
+  onElevenLabsApiKeyChange,
+  isGenerating,
+}: GenerationControlsProps) {
   const updateParam = (key: keyof GenerationParams, value: any) => {
     onChange({ ...params, [key]: value });
   };
 
   return (
     <div className="flex flex-col gap-6 w-full">
+      <div className="flex flex-col gap-2">
+        <label htmlFor="elevenlabs-api-key" className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
+          ElevenLabs API Key <span className="normal-case font-normal tracking-normal text-neutral-600">(optional if configured on the server)</span>
+        </label>
+        <input
+          id="elevenlabs-api-key"
+          type="password"
+          value={elevenLabsApiKey}
+          onChange={(event) => onElevenLabsApiKeyChange(event.target.value)}
+          placeholder="Paste your key here to generate"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          className="w-full bg-neutral-900/40 border border-white/[0.04] rounded-xl px-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/[0.12] focus:ring-1 focus:ring-white/[0.12]"
+        />
+        <p className="text-[10px] leading-relaxed text-neutral-600">Used only for this generation session. It is not saved to this device or the cue library.</p>
+      </div>
+
       {/* Description input */}
       <div className="flex flex-col gap-2">
         <label className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
@@ -50,19 +78,19 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
           <div className="relative flex items-center h-6">
             <input 
               type="range" 
-              min="0.1" 
+              min="0.5"
               max="30" 
               step="0.1"
               value={params.durationSeconds}
               onChange={(e) => updateParam('durationSeconds', parseFloat(e.target.value))}
               className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none"
               style={{
-                background: `linear-gradient(to right, #ffffff ${((params.durationSeconds - 0.1) / 29.9) * 100}%, #262626 ${((params.durationSeconds - 0.1) / 29.9) * 100}%)`
+                background: `linear-gradient(to right, #ffffff ${((params.durationSeconds - 0.5) / 29.5) * 100}%, #262626 ${((params.durationSeconds - 0.5) / 29.5) * 100}%)`
               }}
             />
           </div>
           <div className="flex justify-between text-[10px] text-neutral-600 font-mono">
-            <span>0.1s</span>
+            <span>0.5s</span>
             <span>30.0s</span>
           </div>
         </div>

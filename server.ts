@@ -1,8 +1,55 @@
 import express from "express";
 import path from "path";
 import crypto from "crypto";
+import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { spawn } from "child_process";
+
+// Vite loads client-side env files itself, but this Express server does not.
+// Load local overrides first while leaving deployed environment variables intact.
+dotenv.config({ path: ".env.local", quiet: true });
+dotenv.config({ path: ".env", quiet: true });
+
+const SOUND_GENERATION_MIN_DURATION_SECONDS = 0.5;
+const SOUND_GENERATION_MAX_DURATION_SECONDS = 30;
+const SOUND_GENERATION_TIMEOUT_MS = 90_000;
+
+class RequestError extends Error {
+  constructor(message: string, readonly statusCode: number) {
+    super(message);
+  }
+}
+
+function validateGenerationRequest(body: unknown) {
+  const request = body as Record<string, unknown>;
+  const prompt = typeof request.prompt === "string" ? request.prompt.trim() : "";
+  const durationSeconds = Number(request.durationSeconds);
+  const promptInfluence = Number(request.promptInfluence);
+  const elevenLabsApiKey = typeof request.elevenLabsApiKey === "string"
+    ? request.elevenLabsApiKey.trim()
+    : undefined;
+
+  if (!prompt) throw new RequestError("Enter a sound description before generating.", 400);
+  if (!Number.isFinite(durationSeconds) || durationSeconds < SOUND_GENERATION_MIN_DURATION_SECONDS || durationSeconds > SOUND_GENERATION_MAX_DURATION_SECONDS) {
+    throw new RequestError(`Duration must be between ${SOUND_GENERATION_MIN_DURATION_SECONDS} and ${SOUND_GENERATION_MAX_DURATION_SECONDS} seconds.`, 400);
+  }
+  if (!Number.isFinite(promptInfluence) || promptInfluence < 0 || promptInfluence > 1) {
+    throw new RequestError("Prompt influence must be between 0 and 1.", 400);
+  }
+
+  return {
+    prompt,
+    durationSeconds,
+    promptInfluence,
+    loop: Boolean(request.loop),
+    useCache: Boolean(request.useCache),
+    trimSilence: Boolean(request.trimSilence),
+    normalizeLoudness: Boolean(request.normalizeLoudness),
+    fadeIn: Number(request.fadeIn) || 0,
+    fadeOut: Number(request.fadeOut) || 0,
+    elevenLabsApiKey: elevenLabsApiKey || undefined,
+  };
+}
 
 async function trimSilenceWithFFmpeg(audioBuffer: Buffer, mimeType: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -145,7 +192,7 @@ const config = {
 
 app.post("/api/generate", async (req, res) => {
   try {
-    const { prompt, durationSeconds, promptInfluence, loop, useCache = false, trimSilence = false, normalizeLoudness = false, fadeIn = 0, fadeOut = 0 } = req.body;
+    const { prompt, durationSeconds, promptInfluence, loop, useCache, trimSilence, normalizeLoudness, fadeIn, fadeOut, elevenLabsApiKey } = validateGenerationRequest(req.body);
 
     // Generate a unique cache key based on the exact parameters
     const cacheKey = crypto
@@ -161,23 +208,39 @@ app.post("/api/generate", async (req, res) => {
     }
 
 
-    const apiKey = config.elevenLabsApiKey;
+    // A key pasted into the UI is intentionally request-scoped. It is never
+    // persisted or logged, and falls back to the server environment key.
+    const apiKey = elevenLabsApiKey ?? config.elevenLabsApiKey;
 
     console.log(`Generating sound with ElevenLabs: "${prompt}" (${durationSeconds}s, loop: ${loop}, trimSilence: ${trimSilence}, norm: ${normalizeLoudness}, fadeIn: ${fadeIn}, fadeOut: ${fadeOut})`);
 
-    const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text: prompt,
-        duration_seconds: durationSeconds,
-        prompt_influence: promptInfluence,
-        loop: loop
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SOUND_GENERATION_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: prompt,
+          duration_seconds: durationSeconds,
+          prompt_influence: promptInfluence,
+          loop,
+          model_id: "eleven_text_to_sound_v2",
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new RequestError("Sound generation timed out. Please try again.", 504);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const errResponseText = await response.text();
@@ -228,7 +291,8 @@ app.post("/api/generate", async (req, res) => {
     res.json({ audioBase64, mimeType });
   } catch (error: any) {
     console.error("Error generating sound:", error);
-    res.status(500).json({ error: error.message || "Failed to generate sound" });
+    res.status(error instanceof RequestError ? error.statusCode : 500)
+      .json({ error: error.message || "Failed to generate sound" });
   }
 });
 

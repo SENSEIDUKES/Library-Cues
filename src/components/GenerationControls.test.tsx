@@ -21,6 +21,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={() => {}}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -29,12 +31,31 @@ describe('GenerationControls', () => {
     expect(screen.getByRole('button', { name: /Generate New/i })).toBeInTheDocument();
   });
 
+  it('passes a pasted ElevenLabs key to the session-only key handler', () => {
+    const handleKeyChange = vi.fn();
+    render(
+      <GenerationControls
+        params={defaultParams}
+        onChange={() => {}}
+        onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={handleKeyChange}
+        isGenerating={false}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/ElevenLabs API Key/i), { target: { value: 'sk_test_123' } });
+    expect(handleKeyChange).toHaveBeenCalledWith('sk_test_123');
+  });
+
   it('disables the generate button when isGenerating is true', () => {
     render(
       <GenerationControls
         params={defaultParams}
         onChange={() => {}}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={true}
       />
     );
@@ -50,6 +71,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={() => {}}
         onGenerate={handleGenerate}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -66,6 +89,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -86,6 +111,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -103,6 +130,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -120,6 +149,8 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
+        elevenLabsApiKey=""
+        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
