@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { GenerationParams } from '../types';
 import { Sparkles, Repeat, Scissors, Activity, ArrowRightFromLine, ArrowLeftToLine, Loader2 } from 'lucide-react';
+import { soundPresets, PresetCategory } from '../presets';
 
 interface GenerationControlsProps {
   params: GenerationParams;
@@ -12,42 +13,12 @@ interface GenerationControlsProps {
 
 export function GenerationControls({ params, onChange, onGenerate, isGenerating }: GenerationControlsProps) {
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<'Atmosphere' | 'Actions' | 'Beasts & Combat'>('Atmosphere');
-
-  const presets = [
-    // Atmosphere
-    { name: 'Rain', category: 'Atmosphere' as const, prompt: 'Gentle rain tapping against a glass window, heard from inside a quiet room. Natural uneven droplets, realistic field recording, no thunder, no voices, no music, seamless ambient loop.' },
-    { name: 'Location Signature', category: 'Atmosphere' as const, prompt: 'Ethereal ambient drone marking a mystical location, wind howling through ancient ruins, subtle harmonic whispers, haunting atmosphere' },
-    { name: 'War Horn', category: 'Atmosphere' as const, prompt: 'Deep resonant blast of a massive war horn, booming low-mid frequency, aggressive battle call, distant mountain echo' },
-    { name: 'Sect Bell', category: 'Atmosphere' as const, prompt: 'Heavy bronze temple bell tolling, rich metallic overtones, solemn spiritual resonance, long decay in an open valley' },
-    { name: 'Fate Chime', category: 'Atmosphere' as const, prompt: 'Crystalline celestial chime of fate, solitary resonant bell strike, sparkling stardust tail, infinite ethereal delay' },
-    { name: 'Footstep on Stone', category: 'Atmosphere' as const, prompt: 'A single firm boot step on a stone floor, close and realistic with a short natural echo, no background ambience, no music, one-shot sound effect.' },
-    { name: 'Door Slam', category: 'Atmosphere' as const, prompt: 'A heavy wooden door slamming shut, strong close impact with a brief room echo, no voices, no music, one-shot sound effect.' },
-
-    // Actions
-    { name: 'Sword Swing', category: 'Actions' as const, prompt: 'Swift aerodynamic sword swoosh, sharp metallic wind cleave, high-frequency air displacement, dry close-mic recording' },
-    { name: 'Sword Unsheathe', category: 'Actions' as const, prompt: 'Crisp metallic ring of a sword drawn from a scabbard, bright resonant friction, scraping metal overtone, clean stereo image' },
-    { name: 'Weapon Activation', category: 'Actions' as const, prompt: 'High-tech weapon powering up, ascending electronic hum, glowing plasma crackle, synthetic bass charge, punchy energy surge' },
-    { name: 'Item Manifestation', category: 'Actions' as const, prompt: 'Magical item materializing, ethereal shimmering chimes, soft vacuum implosion, glowing arcane resonance, wide stereo field' },
-    { name: 'Relic Awakening', category: 'Actions' as const, prompt: 'Ancient relic powering on, deep stone grinding, resonant crystal harmonic drone, mystical pulsing energy waves' },
-    { name: 'Artifact Resonance', category: 'Actions' as const, prompt: 'Otherworldly artifact vibrating, sustained eerie harmonic ring, pulsing magnetic hum, metallic singing bowl texture' },
-    { name: 'Formation Activation', category: 'Actions' as const, prompt: 'Magical array formation activating, complex interwoven energy beams, geometric humming tones, crystalline power surge' },
-
-    // Beasts & Combat
-    { name: 'Small Beast Roar', category: 'Beasts & Combat' as const, prompt: 'Guttural snarling roar of a small predatory beast, sharp transient rasps, wet mouth sounds, echoing in a dense forest' },
-    { name: 'Giant Beast Roar', category: 'Beasts & Combat' as const, prompt: 'Massive deafening monster roar, deep chest resonance, ground-shaking low frequency rumble, cavernous acoustic decay' },
-    { name: 'Dragon Roar', category: 'Beasts & Combat' as const, prompt: 'Epic dragon bellow, piercing reptilian screech blending into a sub-bass rumble, fiery breath transients, expansive stereo width' },
-    { name: 'Injured Beast Cry', category: 'Beasts & Combat' as const, prompt: 'A wounded fantasy beast giving a short strained cry, painful and animal-like, weak but still aggressive, no human speech, no music, one-shot sound effect.' },
-    { name: 'Sword Clash', category: 'Beasts & Combat' as const, prompt: 'Two steel swords striking each other with a sharp metallic clash, close and forceful, brief natural ring afterward, no music, one-shot sound effect.' },
-    { name: 'Rapid Sword Exchange', category: 'Beasts & Combat' as const, prompt: 'A fast series of short steel sword clashes during close combat, sharp metallic impacts with quick movement, energetic but not exaggerated, no music, short action sound effect.' },
-    { name: 'Heavy Weapon Impact', category: 'Beasts & Combat' as const, prompt: 'A large metal weapon slamming into a steel blade, heavy metallic impact with a deep ringing tail, powerful and close, no music, one-shot sound effect.' },
-    { name: 'Crowd Chant', category: 'Beasts & Combat' as const, prompt: 'Massive crowd chanting rhythmically in a grand arena, booming unison voices, aggressive percussive stomps, wide stadium reverb' },
-    { name: 'Crowd Gasp', category: 'Beasts & Combat' as const, prompt: 'Sudden collective crowd gasp of shock, sharp inhalation of breath from hundreds of people, tense stadium acoustics' }
-  ];
+  const [activeCategory, setActiveCategory] = useState<PresetCategory>('Atmosphere');
 
   const updateParam = (key: keyof GenerationParams, value: any) => {
     onChange({ ...params, [key]: value });
   };
+
 
   const handleEnhance = async () => {
     if (!params.prompt.trim() || isEnhancing) return;
@@ -101,13 +72,13 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         <div className="flex flex-col gap-3 mt-1.5 pt-1">
           {/* Menu Tab System */}
           <div className="flex flex-col gap-3">
-            <div className="flex border border-white/[0.04] p-0.5 gap-1 self-start bg-neutral-950/60 rounded-xl">
-              {(['Atmosphere', 'Actions', 'Beasts & Combat'] as const).map((cat) => (
+            <div className="flex border border-white/[0.04] p-0.5 gap-1 self-start bg-neutral-950/60 rounded-xl overflow-x-auto max-w-full hide-scrollbar">
+              {(['Atmosphere', 'Beasts', 'Weapons', 'Artifacts/Relics', 'Locations', 'Factions/Rituals', 'System/Fate'] as const).map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setActiveCategory(cat)}
-                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all cursor-pointer select-none ${
+                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all cursor-pointer select-none whitespace-nowrap ${
                     activeCategory === cat
                       ? 'bg-neutral-900 border border-white/[0.04] text-white shadow-sm'
                       : 'text-neutral-500 hover:text-neutral-300'
@@ -118,30 +89,164 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
               ))}
             </div>
 
-            {/* Filtered Preset Badges */}
-            <div className="flex flex-wrap gap-1.5 items-center bg-neutral-950/30 p-2.5 rounded-xl border border-white/[0.02]">
-              {presets
-                .filter((p) => p.category === activeCategory)
-                .map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    onClick={() => {
-                      const durationSeconds = preset.category === 'Atmosphere' ? 30 : 3;
-                      const loop = preset.category === 'Atmosphere';
-                      onChange({
-                        ...params,
-                        prompt: preset.prompt,
-                        durationSeconds,
-                        loop
-                      });
-                    }}
-                    className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/40 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95"
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-            </div>
+            {/* Filtered Preset Badges / Premium Atmospheric Grid Table */}
+            {activeCategory === 'Atmosphere' ? (
+              <div className="border border-white/[0.04] bg-neutral-950/40 rounded-xl overflow-hidden backdrop-blur-md">
+                {/* Table Header */}
+                <div className="grid grid-cols-[100px_1fr] md:grid-cols-[140px_1fr] border-b border-white/[0.04] bg-white/[0.02] px-4 py-2.5 text-[9px] font-bold tracking-wider uppercase text-neutral-500 font-sans">
+                  <div>Atmosphere Type</div>
+                  <div>Example Variations</div>
+                </div>
+
+                {/* Table Rows */}
+                <div className="divide-y divide-white/[0.02] max-h-72 overflow-y-auto custom-scrollbar">
+                  {(['Wind', 'Crowd', 'Waves', 'Rain', 'Combat', 'Noise'] as const).map((subcat) => {
+                    const filteredPresets = soundPresets.filter(
+                      (p) => p.category === 'Atmosphere' && p.subcategory === subcat
+                    );
+
+                    // Dynamic subcategory color indicator
+                    const subcatColors: Record<string, string> = {
+                      Wind: 'bg-sky-400 shadow-sky-400/20',
+                      Crowd: 'bg-amber-400 shadow-amber-400/20',
+                      Waves: 'bg-cyan-500 shadow-cyan-500/20',
+                      Rain: 'bg-blue-400 shadow-blue-400/20',
+                      Combat: 'bg-rose-500 shadow-rose-500/20',
+                      Noise: 'bg-neutral-400 shadow-neutral-400/20'
+                    };
+
+                    const dotColor = subcatColors[subcat] || 'bg-neutral-500';
+
+                    return (
+                      <div 
+                        key={subcat} 
+                        className="grid grid-cols-[100px_1fr] md:grid-cols-[140px_1fr] items-start px-4 py-3.5 hover:bg-white/[0.01] transition-all"
+                      >
+                        {/* Subcategory Label */}
+                        <div className="flex items-center gap-2 pr-2 py-1 select-none">
+                          <span className={`w-2 h-2 rounded-full ${dotColor} shadow-sm animate-pulse shrink-0`} />
+                          <span className="text-xs font-semibold text-neutral-200 font-sans tracking-wide">
+                            {subcat}
+                          </span>
+                        </div>
+
+                        {/* Presets Grid */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {filteredPresets.map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                const durationSeconds = 30; // Atmospheres default to longer duration
+                                const loop = true;
+                                onChange({
+                                  ...params,
+                                  prompt: preset.prompt,
+                                  durationSeconds,
+                                  loop
+                                });
+                              }}
+                              className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/60 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95 shadow-sm"
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : activeCategory === 'System/Fate' ? (
+              <div className="border border-white/[0.04] bg-neutral-950/40 rounded-xl overflow-hidden backdrop-blur-md">
+                {/* Table Header */}
+                <div className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] border-b border-white/[0.04] bg-white/[0.02] px-4 py-2.5 text-[9px] font-bold tracking-wider uppercase text-neutral-500 font-sans">
+                  <div>System Type</div>
+                  <div>Example Variations</div>
+                </div>
+
+                {/* Table Rows */}
+                <div className="divide-y divide-white/[0.02] max-h-72 overflow-y-auto custom-scrollbar">
+                  {(['Open / Reveal', 'Close / Dismiss', 'Confirm / Success', 'Alert / Failure'] as const).map((subcat) => {
+                    const filteredPresets = soundPresets.filter(
+                      (p) => p.category === 'System/Fate' && p.subcategory === subcat
+                    );
+
+                    // Dynamic subcategory color indicator
+                    const subcatColors: Record<string, string> = {
+                      'Open / Reveal': 'bg-indigo-400 shadow-indigo-400/20',
+                      'Close / Dismiss': 'bg-neutral-400 shadow-neutral-400/20',
+                      'Confirm / Success': 'bg-emerald-400 shadow-emerald-400/20',
+                      'Alert / Failure': 'bg-rose-500 shadow-rose-500/20'
+                    };
+
+                    const dotColor = subcatColors[subcat] || 'bg-neutral-500';
+
+                    return (
+                      <div 
+                        key={subcat} 
+                        className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] items-start px-4 py-3.5 hover:bg-white/[0.01] transition-all"
+                      >
+                        {/* Subcategory Label */}
+                        <div className="flex items-center gap-2 pr-2 py-1 select-none">
+                          <span className={`w-2 h-2 rounded-full ${dotColor} shadow-sm animate-pulse shrink-0`} />
+                          <span className="text-xs font-semibold text-neutral-200 font-sans tracking-wide">
+                            {subcat}
+                          </span>
+                        </div>
+
+                        {/* Presets Grid */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {filteredPresets.map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                const durationSeconds = 1.5; // system sfx are short
+                                const loop = false;
+                                onChange({
+                                  ...params,
+                                  prompt: preset.prompt,
+                                  durationSeconds,
+                                  loop
+                                });
+                              }}
+                              className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/60 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95 shadow-sm"
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 items-center bg-neutral-950/30 p-2.5 rounded-xl border border-white/[0.02] max-h-48 overflow-y-auto custom-scrollbar">
+                {soundPresets
+                  .filter((p) => p.category === activeCategory)
+                  .map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        const durationSeconds = preset.category === 'Locations' ? 30 : 3;
+                        const loop = preset.category === 'Locations';
+                        onChange({
+                          ...params,
+                          prompt: preset.prompt,
+                          durationSeconds,
+                          loop
+                        });
+                      }}
+                      className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/40 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end pt-0.5">

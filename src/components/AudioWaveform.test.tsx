@@ -16,7 +16,15 @@ vi.mock('../hooks/useAudioWaveform', () => ({
     sampleRate: 44100,
     fileSizeStr: '1.2 MB',
     volume: 1,
-    setVolume: vi.fn()
+    setVolume: vi.fn(),
+    playbackRate: 1,
+    setPlaybackRate: vi.fn(),
+    filterFreq: 20000,
+    setFilterFreq: vi.fn(),
+    delayFeedback: 0,
+    setDelayFeedback: vi.fn(),
+    reverbAmount: 0,
+    setReverbAmount: vi.fn()
   })
 }));
 
@@ -72,6 +80,7 @@ describe('AudioWaveform', () => {
     
     const input = screen.getByDisplayValue('Test Sound');
     fireEvent.change(input, { target: { value: 'New Sound Name' } });
+    fireEvent.blur(input);
     expect(handleRename).toHaveBeenCalledWith('New Sound Name');
   });
 

@@ -5,6 +5,7 @@ import { SoundAsset } from '../types';
 
 // Setup Mock library state
 let mockDBState: SoundAsset[] = [];
+let mockKitsDBState: any[] = [];
 
 const { mockZipFile, mockZipGenerateAsync, mockSaveAs } = vi.hoisted(() => ({
   mockZipFile: vi.fn(),
@@ -25,11 +26,35 @@ vi.mock('../lib/storage', () => ({
       mockDBState.unshift(sound);
     }
   }),
+  saveSounds: vi.fn(async (sounds: SoundAsset[]) => {
+    sounds.forEach(sound => {
+      const existsIdx = mockDBState.findIndex(s => s.id === sound.id);
+      if (existsIdx > -1) {
+        mockDBState[existsIdx] = sound;
+      } else {
+        mockDBState.unshift(sound);
+      }
+    });
+  }),
   deleteSound: vi.fn(async (id: string) => {
     mockDBState = mockDBState.filter(s => s.id !== id);
   }),
   updateSoundName: vi.fn(async (id: string, newName: string) => {
     mockDBState = mockDBState.map(s => s.id === id ? { ...s, name: newName } : s);
+  }),
+  getKits: vi.fn(async () => {
+    return [...mockKitsDBState];
+  }),
+  saveKit: vi.fn(async (kit: any) => {
+    const existsIdx = mockKitsDBState.findIndex(k => k.id === kit.id);
+    if (existsIdx > -1) {
+      mockKitsDBState[existsIdx] = kit;
+    } else {
+      mockKitsDBState.unshift(kit);
+    }
+  }),
+  deleteKit: vi.fn(async (id: string) => {
+    mockKitsDBState = mockKitsDBState.filter(k => k.id !== id);
   }),
 }));
 

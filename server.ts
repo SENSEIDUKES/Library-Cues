@@ -250,8 +250,14 @@ const config = {
 };
 
 app.post("/api/generate", async (req, res) => {
+  const logs: string[] = [];
+  const timestamp = () => `[${new Date().toISOString().split('T')[1].slice(0,8)}]`;
   try {
     const { prompt, durationSeconds, promptInfluence, loop, useCache = false, trimSilence = false, normalizeLoudness = false, fadeIn = 0, fadeOut = 0 } = req.body;
+
+    logs.push(`${timestamp()} Init: Received sound synthesis request.`);
+    logs.push(`${timestamp()} Config: Prompt: "${prompt}" | Duration: ${durationSeconds}s | Influence: ${promptInfluence} | Loop: ${loop}`);
+    logs.push(`${timestamp()} Config: Post-processing requested: Trim: ${trimSilence}, Normalize: ${normalizeLoudness}, FadeIn: ${fadeIn}s, FadeOut: ${fadeOut}s`);
 
     // Generate a unique cache key based on the exact parameters
     const cacheKey = crypto
@@ -260,17 +266,27 @@ app.post("/api/generate", async (req, res) => {
       .digest("hex");
 
     if (useCache && audioCache.has(cacheKey)) {
-      console.log(`Cache hit for prompt: "${prompt}" (Parameters matched exactly)`);
+      logs.push(`${timestamp()} Cache: Found cached audio buffer (parameters matched exactly).`);
       const cached = audioCache.get(cacheKey)!;
-      res.json({ audioBase64: cached.audioBase64, mimeType: cached.mimeType });
+      logs.push(`${timestamp()} Cache: Loaded cached MP3. Size: ${Buffer.from(cached.audioBase64, "base64").length} bytes.`);
+      res.json({
+        audioBase64: cached.audioBase64,
+        mimeType: cached.mimeType,
+        diagnostics: {
+          engine: "ElevenLabs Sound Generator (Cached)",
+          originalSize: Buffer.from(cached.audioBase64, "base64").length,
+          processedSize: Buffer.from(cached.audioBase64, "base64").length,
+          success: true,
+          logs: [...logs, `${timestamp()} Return: Delivered cached audio.`]
+        }
+      });
       return;
     }
 
-
     const apiKey = config.elevenLabsApiKey;
+    logs.push(`${timestamp()} API: Dispatching sound-generation request to ElevenLabs...`);
 
-    console.log(`Generating sound with ElevenLabs: "${prompt}" (${durationSeconds}s, loop: ${loop}, trimSilence: ${trimSilence}, norm: ${normalizeLoudness}, fadeIn: ${fadeIn}, fadeOut: ${fadeOut})`);
-
+    const tStart = Date.now();
     const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
       method: "POST",
       headers: {
@@ -287,41 +303,68 @@ app.post("/api/generate", async (req, res) => {
 
     if (!response.ok) {
       const errResponseText = await response.text();
+      logs.push(`${timestamp()} Error: ElevenLabs API returned status ${response.status}: ${errResponseText}`);
       throw new Error(`ElevenLabs API returned ${response.status}: ${errResponseText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
     let audioBuffer = Buffer.from(arrayBuffer);
     const mimeType = response.headers.get("content-type") || "audio/mpeg";
+    const originalSize = audioBuffer.length;
+    
+    logs.push(`${timestamp()} API: Received audio from ElevenLabs. Size: ${originalSize} bytes in ${Date.now() - tStart}ms.`);
 
+    let trimSuccess = true;
+    let trimErr = "";
     if (trimSilence) {
-      console.log("Trimming silence with ffmpeg...");
+      logs.push(`${timestamp()} DSP: Spawning FFmpeg silence-trimmer pipeline...`);
       try {
-        audioBuffer = await trimSilenceWithFFmpeg(audioBuffer, mimeType);
-      } catch (e) {
-        console.error("Failed to trim silence, returning original audio. Error:", e);
+        const t0 = Date.now();
+        const trimmed = await trimSilenceWithFFmpeg(audioBuffer, mimeType);
+        const delta = audioBuffer.length - trimmed.length;
+        audioBuffer = trimmed;
+        logs.push(`${timestamp()} DSP: FFmpeg trim silence completed in ${Date.now() - t0}ms. Output size: ${audioBuffer.length} bytes (trimmed ${delta} bytes).`);
+      } catch (e: any) {
+        trimSuccess = false;
+        trimErr = e.message || String(e);
+        logs.push(`${timestamp()} Error: Silence trim failed: ${trimErr}. Preserving original buffer.`);
       }
     }
 
+    let normSuccess = true;
+    let normErr = "";
     if (normalizeLoudness) {
-      console.log("Normalizing loudness with ffmpeg...");
+      logs.push(`${timestamp()} DSP: Spawning FFmpeg EBU R128 loudness normalizer...`);
       try {
-        audioBuffer = await normalizeLoudnessWithFFmpeg(audioBuffer, mimeType);
-      } catch (e) {
-        console.error("Failed to normalize loudness, returning original audio. Error:", e);
+        const t0 = Date.now();
+        const normalized = await normalizeLoudnessWithFFmpeg(audioBuffer, mimeType);
+        audioBuffer = normalized;
+        logs.push(`${timestamp()} DSP: FFmpeg loudness normalizer completed in ${Date.now() - t0}ms. Output size: ${audioBuffer.length} bytes.`);
+      } catch (e: any) {
+        normSuccess = false;
+        normErr = e.message || String(e);
+        logs.push(`${timestamp()} Error: Loudness normalization failed: ${normErr}. Preserving buffer state.`);
       }
     }
 
+    let fadeSuccess = true;
+    let fadeErr = "";
     if (fadeIn > 0 || fadeOut > 0) {
-      console.log(`Fading audio with ffmpeg (in: ${fadeIn}s, out: ${fadeOut}s)...`);
+      logs.push(`${timestamp()} DSP: Spawning FFmpeg fade pipeline (fadeIn: ${fadeIn}s, fadeOut: ${fadeOut}s)...`);
       try {
-        audioBuffer = await fadeAudioWithFFmpeg(audioBuffer, mimeType, Number(fadeIn), Number(fadeOut));
-      } catch (e) {
-        console.error("Failed to fade audio, returning original audio. Error:", e);
+        const t0 = Date.now();
+        const faded = await fadeAudioWithFFmpeg(audioBuffer, mimeType, Number(fadeIn), Number(fadeOut));
+        audioBuffer = faded;
+        logs.push(`${timestamp()} DSP: FFmpeg audio fade completed in ${Date.now() - t0}ms. Output size: ${audioBuffer.length} bytes.`);
+      } catch (e: any) {
+        fadeSuccess = false;
+        fadeErr = e.message || String(e);
+        logs.push(`${timestamp()} Error: Audio fade failed: ${fadeErr}. Preserving buffer state.`);
       }
     }
 
     const audioBase64 = audioBuffer.toString("base64");
+    logs.push(`${timestamp()} Complete: Synthesis and DSP pipeline finished successfully.`);
 
     // Save to cache (limit size to 50 items to prevent memory leaks)
     audioCache.set(cacheKey, { audioBase64, mimeType, timestamp: Date.now() });
@@ -331,14 +374,33 @@ app.post("/api/generate", async (req, res) => {
       audioCache.delete(oldestKey);
     }
 
-    res.json({ audioBase64, mimeType });
+    res.json({
+      audioBase64,
+      mimeType,
+      diagnostics: {
+        engine: "ElevenLabs + FFmpeg DSP Pipeline",
+        originalSize,
+        processedSize: audioBuffer.length,
+        success: trimSuccess && normSuccess && fadeSuccess,
+        logs
+      }
+    });
   } catch (error: any) {
     console.error("Error generating sound:", error);
-    res.status(500).json({ error: error.message || "Failed to generate sound" });
+    res.status(500).json({
+      error: error.message || "Failed to generate sound",
+      diagnostics: {
+        engine: "ElevenLabs + FFmpeg DSP Pipeline",
+        success: false,
+        logs: [...logs, `${timestamp()} Error: Pipeline crashed: ${error.message || error}`]
+      }
+    });
   }
 });
 
 app.post("/api/trim-silence", async (req, res) => {
+  const logs: string[] = [];
+  const timestamp = () => `[${new Date().toISOString().split('T')[1].slice(0,8)}]`;
   try {
     const { audioBase64, mimeType } = req.body;
     if (!audioBase64 || !mimeType) {
@@ -346,19 +408,44 @@ app.post("/api/trim-silence", async (req, res) => {
     }
 
     const audioBuffer = Buffer.from(audioBase64, "base64");
-    console.log("Trimming silence with ffmpeg for existing audio...");
+    const originalSize = audioBuffer.length;
+    logs.push(`${timestamp()} Init: Received post-process silence-trim request.`);
+    logs.push(`${timestamp()} DSP: Spawning FFmpeg silenceremove filter...`);
     
+    const t0 = Date.now();
     const trimmedBuffer = await trimSilenceWithFFmpeg(audioBuffer, mimeType);
     const trimmedBase64 = trimmedBuffer.toString("base64");
+    const delta = originalSize - trimmedBuffer.length;
+    
+    logs.push(`${timestamp()} DSP: FFmpeg trim silence completed in ${Date.now() - t0}ms.`);
+    logs.push(`${timestamp()} DSP: Output size: ${trimmedBuffer.length} bytes (trimmed ${delta} bytes).`);
 
-    res.json({ audioBase64: trimmedBase64 });
+    res.json({
+      audioBase64: trimmedBase64,
+      diagnostics: {
+        engine: "FFmpeg Silence Trimmer",
+        originalSize,
+        processedSize: trimmedBuffer.length,
+        success: true,
+        logs
+      }
+    });
   } catch (error: any) {
     console.error("Error trimming silence:", error);
-    res.status(500).json({ error: error.message || "Failed to trim silence" });
+    res.status(500).json({
+      error: error.message || "Failed to trim silence",
+      diagnostics: {
+        engine: "FFmpeg Silence Trimmer",
+        success: false,
+        logs: [...logs, `${timestamp()} Error: Silence trim failed: ${error.message || error}`]
+      }
+    });
   }
 });
 
 app.post("/api/normalize", async (req, res) => {
+  const logs: string[] = [];
+  const timestamp = () => `[${new Date().toISOString().split('T')[1].slice(0,8)}]`;
   try {
     const { audioBase64, mimeType } = req.body;
     if (!audioBase64 || !mimeType) {
@@ -366,19 +453,43 @@ app.post("/api/normalize", async (req, res) => {
     }
 
     const audioBuffer = Buffer.from(audioBase64, "base64");
-    console.log("Normalizing loudness with ffmpeg...");
+    const originalSize = audioBuffer.length;
+    logs.push(`${timestamp()} Init: Received post-process loudness-normalize request.`);
+    logs.push(`${timestamp()} DSP: Spawning FFmpeg EBU R128 normalizer...`);
     
+    const t0 = Date.now();
     const processedBuffer = await normalizeLoudnessWithFFmpeg(audioBuffer, mimeType);
     const processedBase64 = processedBuffer.toString("base64");
+    
+    logs.push(`${timestamp()} DSP: FFmpeg loudness normalization completed in ${Date.now() - t0}ms.`);
+    logs.push(`${timestamp()} DSP: Output size: ${processedBuffer.length} bytes.`);
 
-    res.json({ audioBase64: processedBase64 });
+    res.json({
+      audioBase64: processedBase64,
+      diagnostics: {
+        engine: "FFmpeg Loudness Normalizer",
+        originalSize,
+        processedSize: processedBuffer.length,
+        success: true,
+        logs
+      }
+    });
   } catch (error: any) {
     console.error("Error normalizing loudness:", error);
-    res.status(500).json({ error: error.message || "Failed to normalize loudness" });
+    res.status(500).json({
+      error: error.message || "Failed to normalize loudness",
+      diagnostics: {
+        engine: "FFmpeg Loudness Normalizer",
+        success: false,
+        logs: [...logs, `${timestamp()} Error: Loudness normalization failed: ${error.message || error}`]
+      }
+    });
   }
 });
 
 app.post("/api/fade", async (req, res) => {
+  const logs: string[] = [];
+  const timestamp = () => `[${new Date().toISOString().split('T')[1].slice(0,8)}]`;
   try {
     const { audioBase64, mimeType, fadeIn = 0, fadeOut = 0 } = req.body;
     if (!audioBase64 || !mimeType) {
@@ -386,15 +497,37 @@ app.post("/api/fade", async (req, res) => {
     }
 
     const audioBuffer = Buffer.from(audioBase64, "base64");
-    console.log(`Fading audio with ffmpeg (in: ${fadeIn}s, out: ${fadeOut}s)...`);
+    const originalSize = audioBuffer.length;
+    logs.push(`${timestamp()} Init: Received post-process fade request.`);
+    logs.push(`${timestamp()} DSP: Spawning FFmpeg fade filters (fadeIn: ${fadeIn}s, fadeOut: ${fadeOut}s)...`);
     
+    const t0 = Date.now();
     const processedBuffer = await fadeAudioWithFFmpeg(audioBuffer, mimeType, Number(fadeIn), Number(fadeOut));
     const processedBase64 = processedBuffer.toString("base64");
+    
+    logs.push(`${timestamp()} DSP: FFmpeg audio fade completed in ${Date.now() - t0}ms.`);
+    logs.push(`${timestamp()} DSP: Output size: ${processedBuffer.length} bytes.`);
 
-    res.json({ audioBase64: processedBase64 });
+    res.json({
+      audioBase64: processedBase64,
+      diagnostics: {
+        engine: "FFmpeg Audio Fader",
+        originalSize,
+        processedSize: processedBuffer.length,
+        success: true,
+        logs
+      }
+    });
   } catch (error: any) {
     console.error("Error fading audio:", error);
-    res.status(500).json({ error: error.message || "Failed to fade audio" });
+    res.status(500).json({
+      error: error.message || "Failed to fade audio",
+      diagnostics: {
+        engine: "FFmpeg Audio Fader",
+        success: false,
+        logs: [...logs, `${timestamp()} Error: Audio fade failed: ${error.message || error}`]
+      }
+    });
   }
 });
 

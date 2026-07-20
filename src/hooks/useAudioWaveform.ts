@@ -20,10 +20,17 @@ export function useAudioWaveform(asset: SoundAsset) {
   const [fileSizeStr, setFileSizeStr] = useState<string>('');
 
   // Web Audio DSP states and nodes
-  const [filterFreq, setFilterFreq] = useState(20000); // 20kHz default (bypass)
-  const [delayFeedback, setDelayFeedback] = useState(0); // 0 default (bypass)
-  const [reverbAmount, setReverbAmount] = useState(0); // 0 default (bypass)
-  const [playbackRate, setPlaybackRateState] = useState(1); // 1 default (normal)
+  const [filterFreq, setFilterFreq] = useState(asset.filterFreq !== undefined ? asset.filterFreq : 20000); // 20kHz default (bypass)
+  const [delayFeedback, setDelayFeedback] = useState(asset.delayFeedback !== undefined ? asset.delayFeedback : 0); // 0 default (bypass)
+  const [reverbAmount, setReverbAmount] = useState(asset.reverbAmount !== undefined ? asset.reverbAmount : 0); // 0 default (bypass)
+  const [playbackRate, setPlaybackRateState] = useState(asset.playbackRate !== undefined ? asset.playbackRate : 1); // 1 default (normal)
+
+  useEffect(() => {
+    setFilterFreq(asset.filterFreq !== undefined ? asset.filterFreq : 20000);
+    setDelayFeedback(asset.delayFeedback !== undefined ? asset.delayFeedback : 0);
+    setReverbAmount(asset.reverbAmount !== undefined ? asset.reverbAmount : 0);
+    setPlaybackRateState(asset.playbackRate !== undefined ? asset.playbackRate : 1);
+  }, [asset.id, asset.playbackRate, asset.filterFreq, asset.delayFeedback, asset.reverbAmount]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);

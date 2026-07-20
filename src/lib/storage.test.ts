@@ -3,16 +3,31 @@ import { SoundAsset } from '../types';
 
 // Create a mock store and a mock db to test the IndexedDB operations.
 let mockStore: Record<string, any> = {};
-const mockGet = vi.fn(async (id: string) => mockStore[id]);
+let shouldIdbFail = false;
+
+const mockGet = vi.fn(async (id: string) => {
+  if (shouldIdbFail) throw new Error('IndexedDB get failed');
+  return mockStore[id];
+});
 const mockPut = vi.fn(async (val: any) => {
+  if (shouldIdbFail) throw new Error('IndexedDB put failed');
   mockStore[val.id] = val;
 });
 const mockDelete = vi.fn(async (id: string) => {
+  if (shouldIdbFail) throw new Error('IndexedDB delete failed');
   delete mockStore[id];
 });
-const mockGetAll = vi.fn(async () => Object.values(mockStore));
+const mockGetAll = vi.fn(async () => {
+  if (shouldIdbFail) throw new Error('IndexedDB getAll failed');
+  return Object.values(mockStore);
+});
 
 const mockTx = {
+  store: {
+    put: mockPut,
+    get: mockGet,
+    delete: mockDelete,
+  },
   objectStore: vi.fn(() => ({
     get: mockGet,
     put: mockPut,
@@ -22,19 +37,24 @@ const mockTx = {
 
 const mockDb = {
   put: vi.fn(async (store: string, sound: any) => {
+    if (shouldIdbFail) throw new Error('IndexedDB put failed');
     mockStore[sound.id] = sound;
   }),
   getAll: vi.fn(async (store: string) => {
+    if (shouldIdbFail) throw new Error('IndexedDB getAll failed');
     return Object.values(mockStore);
   }),
   delete: vi.fn(async (store: string, id: string) => {
+    if (shouldIdbFail) throw new Error('IndexedDB delete failed');
     delete mockStore[id];
   }),
-  transaction: vi.fn(() => mockTx),
+  transaction: vi.fn(() => {
+    if (shouldIdbFail) throw new Error('IndexedDB transaction failed');
+    return mockTx;
+  }),
 };
 
 // Mock the openDB function from 'idb'
-let shouldIdbFail = false;
 vi.mock('idb', () => ({
   openDB: vi.fn(async () => {
     if (shouldIdbFail) {

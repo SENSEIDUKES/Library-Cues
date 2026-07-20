@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, Download, Trash2, CheckCircle, Circle, Volume2, Activity, Info, CheckSquare, Square, Scissors, Loader2, Undo2, Sliders, Tag, ChevronDown, Plus, X, FileText, Layers, Pencil } from 'lucide-react';
+import { Play, Pause, Download, Trash2, CheckCircle, Circle, Volume2, Activity, Info, CheckSquare, Square, Scissors, Loader2, Undo2, Sliders, Tag, ChevronDown, Plus, X, FileText, Layers, Pencil, Check, FolderArchive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { SoundAsset } from '../types';
+import { SoundAsset, SoundKit } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
+import { decodeAudioBase64, bakeEffectsOnClientSide } from '../lib/audio';
 
 interface AudioWaveformProps {
   key?: string;
@@ -20,12 +21,44 @@ interface AudioWaveformProps {
   isSelected?: boolean;
   onToggleSelect?: () => void;
   className?: string;
+  onShowDiagnostics?: (asset: SoundAsset) => void;
+  viewMode?: 'detailed' | 'compact';
+  kits?: SoundKit[];
+  onAssignToKit?: (kitId: string, soundId: string) => void;
+  onRemoveFromKit?: (kitId: string, soundId: string) => void;
+  isFocused?: boolean;
+  onFocus?: () => void;
+  id?: string;
 }
 
-export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence, onUndoTrim, onNormalizeLoudness, onFadeAudio, onUpdateAsset, isKept, isSelected, onToggleSelect, className }: AudioWaveformProps) {
+export function AudioWaveform({ 
+  asset, 
+  onKeep, 
+  onReject, 
+  onRename, 
+  onTrimSilence, 
+  onUndoTrim, 
+  onNormalizeLoudness, 
+  onFadeAudio, 
+  onUpdateAsset, 
+  isKept, 
+  isSelected, 
+  onToggleSelect, 
+  className, 
+  onShowDiagnostics,
+  viewMode = 'detailed',
+  kits = [],
+  onAssignToKit,
+  onRemoveFromKit,
+  isFocused = false,
+  onFocus,
+  id
+}: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isTrimming, setIsTrimming] = useState(false);
+  const [isBaking, setIsBaking] = useState(false);
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
+  const [isKitDropdownOpen, setIsKitDropdownOpen] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [localName, setLocalName] = useState(asset.name);
   
@@ -104,6 +137,32 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
     setPlaybackRate
   } = useAudioWaveform(asset);
 
+  // Global Space Key Listener for focused item to toggle play/pause
+  useEffect(() => {
+    if (!isFocused) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === 'INPUT' || 
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.hasAttribute('contenteditable')
+      ) {
+        return;
+      }
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePlay();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [isFocused, togglePlay]);
+
   // Note: playbackRate is now synchronized inside useAudioWaveform
   // Draw Waveform onto Canvas
   useEffect(() => {
@@ -169,17 +228,99 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
     seek(targetTime);
   };
 
-  const handleDownload = () => {
+  const hasActiveEffects = playbackRate !== 1 || filterFreq !== 20000 || delayFeedback !== 0 || reverbAmount !== 0;
+
+  const handleBakeEffects = async () => {
+    if (!hasActiveEffects) return;
+    setIsBaking(true);
+    try {
+      const decoded = await bakeEffectsOnClientSide(
+        asset.audioBase64,
+        asset.mimeType,
+        playbackRate,
+        filterFreq,
+        delayFeedback,
+        reverbAmount
+      );
+      
+      const peakResult = await decodeAudioBase64(decoded.audioBase64);
+      
+      const updatedAsset: SoundAsset = {
+        ...asset,
+        audioBase64: decoded.audioBase64,
+        mimeType: decoded.mimeType,
+        durationSeconds: decoded.durationSeconds,
+        peaks: peakResult.peaks,
+        sampleRate: peakResult.sampleRate,
+        previousAudioBase64: asset.audioBase64,
+        playbackRate: 1,
+        filterFreq: 20000,
+        delayFeedback: 0,
+        reverbAmount: 0
+      };
+      
+      setPlaybackRate(1);
+      setFilterFreq(20000);
+      setDelayFeedback(0);
+      setReverbAmount(0);
+      
+      if (onUpdateAsset) {
+        onUpdateAsset(updatedAsset);
+      }
+    } catch (err) {
+      console.error("Failed to bake effects:", err);
+    } finally {
+      setIsBaking(false);
+    }
+  };
+
+  const handleEffectChangeEnd = () => {
+    if (onUpdateAsset) {
+      onUpdateAsset({
+        ...asset,
+        playbackRate,
+        filterFreq,
+        delayFeedback,
+        reverbAmount
+      });
+    }
+  };
+
+  const handleDownload = async () => {
+    let base64 = asset.audioBase64;
+    let mimeType = asset.mimeType;
     let extension = 'mp3';
-    if (asset.mimeType?.includes('wav')) {
+    if (mimeType?.includes('wav')) {
       extension = 'wav';
-    } else if (asset.mimeType?.includes('ogg')) {
+    } else if (mimeType?.includes('ogg')) {
       extension = 'ogg';
-    } else if (asset.mimeType?.includes('aac')) {
+    } else if (mimeType?.includes('aac')) {
       extension = 'aac';
     }
+
+    if (hasActiveEffects) {
+      setIsBaking(true);
+      try {
+        const decoded = await bakeEffectsOnClientSide(
+          asset.audioBase64,
+          asset.mimeType,
+          playbackRate,
+          filterFreq,
+          delayFeedback,
+          reverbAmount
+        );
+        base64 = decoded.audioBase64;
+        mimeType = decoded.mimeType;
+        extension = 'wav';
+      } catch (err) {
+        console.error("Failed to bake effects on download:", err);
+      } finally {
+        setIsBaking(false);
+      }
+    }
+    
     const link = document.createElement('a');
-    link.href = `data:${asset.mimeType};base64,${asset.audioBase64}`;
+    link.href = `data:${mimeType};base64,${base64}`;
     link.download = `${asset.name.replace(/\s+/g, '_')}.${extension}`;
     link.click();
   };
@@ -190,12 +331,328 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  if (viewMode === 'compact') {
+    return (
+      <div 
+        id={id}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest('button') || target.closest('input') || target.closest('select')) {
+            return;
+          }
+          onFocus?.();
+        }}
+        className={cn(
+          "py-2.5 px-4 rounded-xl bg-neutral-900/40 border border-white/[0.04] backdrop-blur-xl transition-all duration-200 relative group flex items-center justify-between gap-3 min-h-[52px]", 
+          isSelected && "border-white/[0.15] bg-white/[0.02]",
+          isFocused && "border-white/20 bg-white/[0.03] ring-1 ring-white/10 shadow-[0_0_10px_rgba(255,255,255,0.03)]",
+          (isMetadataOpen || isKitDropdownOpen) ? "z-40" : "z-10",
+          className
+        )}
+      >
+        {/* Left Elements: Selection and Playback */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {onToggleSelect && (
+            <button 
+              onClick={onToggleSelect} 
+              className={cn(
+                "text-neutral-600 hover:text-neutral-400 transition-colors cursor-pointer select-none shrink-0", 
+                isSelected && "text-white"
+              )}
+            >
+              {isSelected ? <CheckSquare className="w-4.5 h-4.5" /> : <Square className="w-4.5 h-4.5" />}
+            </button>
+          )}
+
+          {/* Small Circular Play Button */}
+          <button 
+            onClick={togglePlay}
+            className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-100 active:scale-95 transition-all shadow shrink-0 cursor-pointer select-none"
+          >
+            {isPlaying ? (
+              <Pause className="w-3.5 h-3.5 fill-current text-neutral-950" />
+            ) : (
+              <Play className="w-3.5 h-3.5 fill-current text-neutral-950 ml-0.5" />
+            )}
+          </button>
+
+          {/* Editable Sound Name & Prompt Snippet */}
+          <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+            <div className="group/rename relative flex items-center w-full">
+              <input 
+                className="bg-transparent border-none outline-none font-semibold text-xs text-neutral-200 focus:text-white placeholder-neutral-600 w-full tracking-tight focus:ring-0 focus:border-none p-0"
+                value={localName}
+                onChange={handleNameChange}
+                onBlur={handleNameBlur}
+                onKeyDown={handleNameKeyDown}
+                placeholder="Name sound..."
+                title="Click to rename"
+              />
+            </div>
+            {/* Shortened Prompt or Tag Snippet */}
+            <span className="text-[10px] text-neutral-500 truncate max-w-[280px]" title={asset.prompt}>
+              {asset.prompt}
+            </span>
+          </div>
+        </div>
+
+        {/* Middle Elements: Compact Waveform, Category, Duration */}
+        <div className="flex items-center gap-3.5 shrink-0">
+          {/* Subtle compact waveform canvas */}
+          <div className="w-20 h-6 relative bg-neutral-950/20 rounded border border-white/[0.01]">
+            <canvas 
+              ref={canvasRef} 
+              onClick={handleCanvasClick}
+              className="w-full h-full cursor-pointer rounded"
+            />
+          </div>
+
+          {/* Category Pill */}
+          {asset.category && (
+            <span className={cn(
+              "text-[8px] font-bold font-sans px-1.5 py-0.5 rounded border uppercase tracking-wider hidden sm:inline-flex items-center gap-1",
+              asset.category === 'ambient' && "bg-blue-500/10 text-blue-400 border-blue-500/20",
+              asset.category === 'ui' && "bg-amber-500/10 text-amber-300 border-amber-500/20",
+              asset.category === 'action' && "bg-rose-500/10 text-rose-300 border-rose-500/20",
+              !['ambient', 'ui', 'action'].includes(asset.category) && "bg-white/[0.03] text-neutral-400 border-white/[0.05]"
+            )}>
+              {asset.category}
+            </span>
+          )}
+
+          {/* Tags */}
+          {asset.tags && asset.tags.length > 0 && (
+            <div className="hidden md:flex items-center gap-1">
+              {asset.tags.slice(0, 2).map(tag => (
+                <span key={tag} className="text-[8px] text-neutral-500 bg-white/[0.01] border border-white/[0.02] px-1 py-0.5 rounded-full">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Duration text */}
+          <span className="text-[10px] font-mono text-neutral-500 w-10 text-right tabular-nums">
+            {displayDuration > 0 ? `${displayDuration.toFixed(1)}s` : '--'}
+          </span>
+        </div>
+
+        {/* Right Elements: Quick Actions & Kits Dropdown */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Kit Assigner Button */}
+          {kits && kits.length > 0 && (
+            <div className="relative">
+              <button 
+                onClick={() => setIsKitDropdownOpen(!isKitDropdownOpen)}
+                className={cn(
+                  "w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer select-none text-neutral-400 hover:bg-white/[0.05] hover:text-white",
+                  isKitDropdownOpen && "bg-white text-black hover:bg-white"
+                )}
+                title="Add to Kit"
+              >
+                <FolderArchive className="w-3.5 h-3.5" />
+              </button>
+
+              <AnimatePresence>
+                {isKitDropdownOpen && (
+                  <>
+                    {/* Click-away backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={() => setIsKitDropdownOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                      className="absolute right-0 bottom-full mb-2 z-50 bg-neutral-900 border border-white/[0.08] rounded-xl p-1.5 shadow-xl w-48 text-left"
+                    >
+                      <div className="px-2 py-1 text-[9px] font-bold text-neutral-500 uppercase tracking-wider border-b border-white/[0.03] mb-1">
+                        Select Kits
+                      </div>
+                      <div className="max-h-40 overflow-y-auto scrollbar-none flex flex-col gap-0.5">
+                        {kits.map(kit => {
+                          const isInKit = kit.soundIds.includes(asset.id);
+                          return (
+                            <button
+                              key={kit.id}
+                              onClick={() => {
+                                if (isInKit) {
+                                  onRemoveFromKit?.(kit.id, asset.id);
+                                } else {
+                                  onAssignToKit?.(kit.id, asset.id);
+                                  // Auto-close on assign
+                                }
+                              }}
+                              className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-lg text-[11px] hover:bg-white/[0.04] transition-colors cursor-pointer"
+                            >
+                              <span className="truncate pr-2">{kit.name}</span>
+                              {isInKit ? (
+                                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              ) : (
+                                <Plus className="w-3 h-3 text-neutral-600 hover:text-white shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Download Button */}
+          <button 
+            onClick={handleDownload} 
+            disabled={isBaking}
+            className="w-6 h-6 rounded-full bg-white/[0.02] hover:bg-white/[0.06] text-neutral-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50" 
+            title="Download"
+          >
+            {isBaking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          </button>
+
+          {/* Details / Effects Toggle */}
+          <button
+            onClick={() => setIsMetadataOpen(!isMetadataOpen)}
+            className={cn(
+              "w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer select-none text-neutral-400 hover:bg-white/[0.05] hover:text-white",
+              isMetadataOpen && "bg-white text-black hover:bg-white"
+            )}
+            title="Show Effects & Details"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Delete Button */}
+          {onReject && (
+            <button 
+              onClick={onReject} 
+              className="w-6 h-6 rounded-full text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center transition-colors cursor-pointer shrink-0" 
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Collapsible details subpanel in compact row */}
+        <AnimatePresence>
+          {isMetadataOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute top-full left-0 right-0 mt-1.5 z-40 bg-neutral-900/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-3.5"
+            >
+              {/* Volume & Pitch quick sliders */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 justify-between bg-white/[0.01] border border-white/[0.03] p-1.5 px-2.5 rounded-xl">
+                  <span className="text-[10px] text-neutral-400 font-medium">Volume</span>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.01" 
+                    value={volume !== undefined ? volume : 1}
+                    onChange={(e) => setVolume && setVolume(parseFloat(e.target.value))}
+                    className="w-24 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 justify-between bg-white/[0.01] border border-white/[0.03] p-1.5 px-2.5 rounded-xl">
+                  <span className="text-[10px] text-neutral-400 font-medium">Pitch ({playbackRate.toFixed(1)}x)</span>
+                  <input 
+                    type="range" 
+                    min="0.5" 
+                    max="2" 
+                    step="0.05" 
+                    value={playbackRate}
+                    onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+                    onMouseUp={handleEffectChangeEnd}
+                    onTouchEnd={handleEffectChangeEnd}
+                    className="w-24 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-100 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow"
+                  />
+                </div>
+              </div>
+
+              {/* Sub-actions */}
+              <div className="flex flex-wrap items-center justify-between border-t border-white/[0.04] pt-3.5 gap-2">
+                <div className="flex gap-2">
+                  {onTrimSilence && !asset.previousAudioBase64 && (
+                    <button
+                      onClick={async () => {
+                        setIsTrimming(true);
+                        try { await onTrimSilence(); } finally { setIsTrimming(false); }
+                      }}
+                      className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.04] cursor-pointer transition-colors"
+                    >
+                      <Scissors className="w-3 h-3" /> Trim Silence
+                    </button>
+                  )}
+                  {onNormalizeLoudness && !asset.previousAudioBase64 && (
+                    <button
+                      onClick={async () => {
+                        setIsTrimming(true);
+                        try { await onNormalizeLoudness(); } finally { setIsTrimming(false); }
+                      }}
+                      className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.04] cursor-pointer transition-colors"
+                    >
+                      <Activity className="w-3 h-3" /> Normalize
+                    </button>
+                  )}
+                  {onUndoTrim && asset.previousAudioBase64 && (
+                    <button
+                      onClick={async () => {
+                        setIsTrimming(true);
+                        try { await onUndoTrim(); } finally { setIsTrimming(false); }
+                      }}
+                      className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 px-2.5 py-1 rounded-full border border-emerald-500/20 cursor-pointer transition-colors"
+                    >
+                      <Undo2 className="w-3 h-3" /> Undo DSP
+                    </button>
+                  )}
+                  {hasActiveEffects && !asset.previousAudioBase64 && (
+                    <button
+                      onClick={handleBakeEffects}
+                      disabled={isBaking}
+                      className="flex items-center gap-1.5 text-[10px] text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full border border-white/5 cursor-pointer transition-colors"
+                    >
+                      <Sliders className="w-3 h-3" /> Print Effects
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setIsMetadataOpen(false)}
+                  className="text-[10px] text-neutral-500 hover:text-neutral-300 cursor-pointer transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn(
-      "p-4 rounded-2xl bg-neutral-900/35 border border-white/[0.04] backdrop-blur-xl transition-all duration-300 relative group", 
-      isKept ? "border-white/[0.12] bg-white/[0.01]" : "", 
-      className
-    )}>
+    <div 
+      id={id}
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('input') || target.closest('select')) {
+          return;
+        }
+        onFocus?.();
+      }}
+      className={cn(
+        "p-4 rounded-2xl bg-neutral-900/35 border border-white/[0.04] backdrop-blur-xl transition-all duration-300 relative group", 
+        isKept ? "border-white/[0.12] bg-white/[0.01]" : "", 
+        isFocused && "border-white/20 bg-white/[0.03] ring-1 ring-white/10 shadow-[0_0_15px_rgba(255,255,255,0.04)]",
+        (isMetadataOpen || isKitDropdownOpen) ? "z-40" : "z-10",
+        className
+      )}
+    >
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2.5 max-w-[75%]">
           {onToggleSelect && (
@@ -246,6 +703,52 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
         </div>
       </div>
       
+      {/* Active Applied Effects Pill Badges */}
+      {(hasActiveEffects || asset.previousAudioBase64 || asset.appliedEffects || asset.diagnostics) && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-3.5 px-0.5 animate-fade-in">
+          {hasActiveEffects && (
+            <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full select-none">
+              <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+              DSP ACTIVE
+            </span>
+          )}
+          {((asset.appliedEffects?.trimSilence) || (asset.previousAudioBase64 && !asset.appliedEffects)) && (
+            <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-full select-none">
+              <span className="w-1 h-1 rounded-full bg-sky-400" />
+              SILENCE TRIMMED
+            </span>
+          )}
+          {asset.appliedEffects?.normalizeLoudness && (
+            <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full select-none">
+              <span className="w-1 h-1 rounded-full bg-indigo-400" />
+              NORMALIZED
+            </span>
+          )}
+          {(asset.appliedEffects?.fadeIn !== undefined || asset.appliedEffects?.fadeOut !== undefined) && (
+            <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-fuchsia-400 bg-fuchsia-500/10 border border-fuchsia-500/20 px-2 py-0.5 rounded-full select-none">
+              <span className="w-1 h-1 rounded-full bg-fuchsia-400" />
+              FADED
+            </span>
+          )}
+          {asset.appliedEffects?.printedRealtime && (
+            <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full select-none">
+              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+              DSP PRINTED
+            </span>
+          )}
+          {asset.diagnostics && onShowDiagnostics && (
+            <button
+              onClick={() => onShowDiagnostics(asset)}
+              className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-neutral-400 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2.5 py-0.5 rounded-full transition-all cursor-pointer select-none ml-auto"
+              title="Inspect DSP Pipeline Telemetry Logs"
+            >
+              <FileText className="w-2.5 h-2.5 text-neutral-400" />
+              TELEMETRY LOG
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3.5">
         <button 
           onClick={togglePlay}
@@ -266,10 +769,11 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
         </div>
         <button 
           onClick={handleDownload} 
-          className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-neutral-300 flex items-center justify-center transition-colors cursor-pointer shrink-0" 
-          title="Download"
+          disabled={isBaking}
+          className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-neutral-300 flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed" 
+          title={hasActiveEffects ? "Download WAV (Bakes current effects on-the-fly)" : "Download"}
         >
-          <Download className="w-3.5 h-3.5" />
+          {isBaking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
         </button>
         <div className="text-[10px] font-mono text-neutral-500 tabular-nums shrink-0 w-9 text-right">
           {formatTime(currentTime)}
@@ -336,6 +840,8 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                 step="0.05" 
                 value={playbackRate}
                 onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+                onMouseUp={handleEffectChangeEnd}
+                onTouchEnd={handleEffectChangeEnd}
                 className="w-12 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-300 [&::-webkit-slider-thumb]:rounded-full"
               />
               <span className="text-[9px] font-mono text-neutral-500 w-5 text-right">{playbackRate.toFixed(1)}x</span>
@@ -414,6 +920,22 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
               >
                 <svg className="w-3 h-3 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
                 <span className="text-[9px] font-sans font-medium text-neutral-400">Apply Fade</span>
+              </button>
+            )}
+
+            {hasActiveEffects && !asset.previousAudioBase64 && (
+              <button
+                onClick={handleBakeEffects}
+                disabled={isBaking}
+                className="ml-2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 px-2.5 py-1 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                title="Print effects, filters, and speed changes permanently into the audio file"
+              >
+                {isBaking ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-white" />
+                ) : (
+                  <Sliders className="w-3 h-3 text-white" />
+                )}
+                <span className="text-[9px] font-sans font-bold text-white">Print Effects</span>
               </button>
             )}
           </div>
@@ -591,7 +1113,27 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                     <Activity className="w-3.5 h-3.5 text-neutral-500" />
                     <span>Real-Time Studio Effects (Web Audio DSP)</span>
                   </h4>
-                  <span className="text-[9px] text-neutral-600 font-mono">Simulated Analog Signal Path</span>
+                  {hasActiveEffects && !asset.previousAudioBase64 && (
+                    <button
+                      onClick={handleBakeEffects}
+                      disabled={isBaking}
+                      className="flex items-center gap-1.5 bg-white text-black hover:bg-neutral-200 px-3 py-1 rounded-full transition-all cursor-pointer text-[10px] font-bold shadow-md"
+                      title="Commit these effects permanently to the audio file"
+                    >
+                      {isBaking ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-black" />
+                      ) : (
+                        <Sliders className="w-3.5 h-3.5 text-black" />
+                      )}
+                      <span>Print Effects to File</span>
+                    </button>
+                  )}
+                  {asset.previousAudioBase64 && (
+                    <span className="text-[9px] text-emerald-400 font-medium">Effects printed! Click 'Undo Action' to revert.</span>
+                  )}
+                  {!hasActiveEffects && !asset.previousAudioBase64 && (
+                    <span className="text-[9px] text-neutral-600 font-mono">Simulated Analog Signal Path</span>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/[0.01] border border-white/[0.02] p-3 rounded-xl">
@@ -610,6 +1152,8 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                       step="0.05"
                       value={playbackRate}
                       onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+                      onMouseUp={handleEffectChangeEnd}
+                      onTouchEnd={handleEffectChangeEnd}
                       className="w-full accent-white bg-neutral-800/80 h-1 rounded-full appearance-none cursor-pointer"
                     />
                     <div className="flex justify-between text-[8px] font-mono text-neutral-600">
@@ -631,6 +1175,8 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                       step="100"
                       value={filterFreq}
                       onChange={(e) => setFilterFreq(parseInt(e.target.value))}
+                      onMouseUp={handleEffectChangeEnd}
+                      onTouchEnd={handleEffectChangeEnd}
                       className="w-full accent-white bg-neutral-800/80 h-1 rounded-full appearance-none cursor-pointer"
                     />
                     <div className="flex justify-between text-[8px] font-mono text-neutral-600">
@@ -652,6 +1198,8 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                       step="0.05"
                       value={delayFeedback}
                       onChange={(e) => setDelayFeedback(parseFloat(e.target.value))}
+                      onMouseUp={handleEffectChangeEnd}
+                      onTouchEnd={handleEffectChangeEnd}
                       className="w-full accent-white bg-neutral-800/80 h-1 rounded-full appearance-none cursor-pointer"
                     />
                     <div className="flex justify-between text-[8px] font-mono text-neutral-600">
@@ -673,6 +1221,8 @@ export function AudioWaveform({ asset, onKeep, onReject, onRename, onTrimSilence
                       step="0.1"
                       value={reverbAmount}
                       onChange={(e) => setReverbAmount(parseFloat(e.target.value))}
+                      onMouseUp={handleEffectChangeEnd}
+                      onTouchEnd={handleEffectChangeEnd}
                       className="w-full accent-white bg-neutral-800/80 h-1 rounded-full appearance-none cursor-pointer"
                     />
                     <div className="flex justify-between text-[8px] font-mono text-neutral-600">

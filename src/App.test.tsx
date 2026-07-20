@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from './App';
 
 let mockLibrary: any[] = [];
+let mockKits: any[] = [];
 
 vi.mock('./lib/storage', () => ({
   getSounds: vi.fn(async () => {
@@ -15,11 +16,34 @@ vi.mock('./lib/storage', () => ({
       mockLibrary = mockLibrary.map(s => s.id === sound.id ? sound : s);
     }
   }),
+  saveSounds: vi.fn(async (sounds) => {
+    sounds.forEach(sound => {
+      if (!mockLibrary.find(s => s.id === sound.id)) {
+        mockLibrary.push(sound);
+      } else {
+        mockLibrary = mockLibrary.map(s => s.id === sound.id ? sound : s);
+      }
+    });
+  }),
   deleteSound: vi.fn(async (id) => {
     mockLibrary = mockLibrary.filter(s => s.id !== id);
   }),
   updateSoundName: vi.fn(async (id, newName) => {
     mockLibrary = mockLibrary.map(s => s.id === id ? { ...s, name: newName } : s);
+  }),
+  getKits: vi.fn(async () => {
+    return [...mockKits];
+  }),
+  saveKit: vi.fn(async (kit) => {
+    const existsIdx = mockKits.findIndex(k => k.id === kit.id);
+    if (existsIdx > -1) {
+      mockKits[existsIdx] = kit;
+    } else {
+      mockKits.unshift(kit);
+    }
+  }),
+  deleteKit: vi.fn(async (id) => {
+    mockKits = mockKits.filter(k => k.id !== id);
   }),
 }));
 
@@ -31,6 +55,10 @@ vi.mock('./hooks/useAudioWaveform', () => ({
     togglePlay: vi.fn(),
     seek: vi.fn(),
     peaks: [],
+    playbackRate: 1.0,
+    setPlaybackRate: vi.fn(),
+    volume: 1.0,
+    setVolume: vi.fn(),
   })),
 }));
 
@@ -152,10 +180,10 @@ describe('App', () => {
     });
 
     // We need to keep a variation. The AudioWaveform component renders an input with the name 'SFX - Var 1'
-    // The keep button is the first button inside each AudioWaveform
+    // The keep button is the second button inside each AudioWaveform (index 1)
     const var1Input = screen.getByDisplayValue('SFX - Var 1');
-    const waveformDiv = var1Input.closest('div.p-4');
-    const keepBtn = waveformDiv?.querySelectorAll('button')[0];
+    const waveformDiv = var1Input.closest('.group');
+    const keepBtn = waveformDiv?.querySelectorAll('button')[1];
     if (keepBtn) {
       fireEvent.click(keepBtn);
     }
@@ -180,7 +208,7 @@ describe('App', () => {
     // Remove from library
     // The library tab AudioWaveform delete button
     const renamedInput = screen.getByDisplayValue('Renamed Var');
-    const libraryWaveformDiv = renamedInput.closest('div.p-4');
+    const libraryWaveformDiv = renamedInput.closest('.group');
     // find the button with title "Delete"
     const deleteBtn = libraryWaveformDiv?.querySelector('button[title="Delete"]');
     if (deleteBtn) {
@@ -246,7 +274,7 @@ describe('App', () => {
     });
 
     // Reject (delete) variation
-    const waveformDiv = screen.getByDisplayValue('Renamed Variation').closest('div.p-4');
+    const waveformDiv = screen.getByDisplayValue('Renamed Variation').closest('.group');
     const deleteBtn = waveformDiv?.querySelector('button[title="Delete"]');
     if (deleteBtn) {
       fireEvent.click(deleteBtn);
@@ -289,6 +317,97 @@ describe('App', () => {
     const { saveAs } = await import('file-saver');
     await waitFor(() => {
       expect(saveAs).toHaveBeenCalled();
+    });
+  });
+
+  it('handles keyboard shortcuts in library tab', async () => {
+    mockLibrary = [{
+      id: '1',
+      name: 'Saved Sound 1',
+      prompt: 'Prompt 1',
+      audioBase64: 'fake-audio-1',
+      mimeType: 'audio/mpeg',
+      createdAt: Date.now() - 1000,
+      durationSeconds: 4,
+      loop: false
+    }, {
+      id: '2',
+      name: 'Saved Sound 2',
+      prompt: 'Prompt 2',
+      audioBase64: 'fake-audio-2',
+      mimeType: 'audio/mpeg',
+      createdAt: Date.now(),
+      durationSeconds: 3,
+      loop: true
+    }];
+
+    render(<App />);
+
+    // Switch to Saved Kit
+    fireEvent.click(screen.getByText('Saved Kit'));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Saved Sound 1')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Saved Sound 2')).toBeInTheDocument();
+    });
+
+    // Press ArrowDown to focus first item
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    
+    // Press ArrowDown again to cycle to next item
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+
+    // Press 'a' with metaKey or ctrlKey (Select All)
+    fireEvent.keyDown(window, { key: 'a', ctrlKey: true });
+    
+    // Press Space to toggle play (since we mocked useAudioWaveform playbackRate/volume)
+    fireEvent.keyDown(window, { key: ' ' });
+
+    // Press Backspace to trigger delete selected
+    fireEvent.keyDown(window, { key: 'Backspace' });
+    
+    await waitFor(() => {
+      // It should show the bulk delete modal
+      expect(screen.getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
+    });
+  });
+
+  it('handles creating sound kits visually', async () => {
+    mockLibrary = [{
+      id: '1',
+      name: 'Saved Sound 1',
+      prompt: 'Prompt 1',
+      audioBase64: 'fake-audio-1',
+      mimeType: 'audio/mpeg',
+      createdAt: Date.now() - 1000,
+      durationSeconds: 4,
+      loop: false
+    }];
+
+    render(<App />);
+
+    // Switch to Saved Kit
+    fireEvent.click(screen.getByText('Saved Kit'));
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Create New Sound Kit')).toBeInTheDocument();
+    });
+
+    // Create a sound kit
+    const createKitBtn = screen.getByTitle('Create New Sound Kit');
+    fireEvent.click(createKitBtn);
+
+    // Type name
+    const kitNameInput = screen.getByPlaceholderText(/e.g. Vintage Synth/i);
+    fireEvent.change(kitNameInput, { target: { value: 'Synthwave Kit' } });
+
+    // Submit
+    const submitBtn = screen.getByRole('button', { name: 'Create Kit' });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      // The kit "Synthwave Kit" should be displayed in the sidebar
+      expect(screen.getByText('Synthwave Kit')).toBeInTheDocument();
     });
   });
 });
