@@ -1,112 +1,96 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { StoredCueRecord } from '../types/cues';
-import {
-  deleteCueRecord,
-  deleteCueRecords,
-  getCueRecords,
-  migrateLegacyLocalStorage,
-  saveCueRecord,
-} from '../lib/storage';
-import { downloadCueKit } from '../lib/cueExport';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { useState, useEffect } from 'react';
+import { SoundAsset } from '../types';
+import { getSounds, saveSound, deleteSound, updateSoundName } from '../lib/storage';
 
 export function useSoundLibrary() {
-  const [library, setLibrary] = useState<StoredCueRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [storageError, setStorageError] = useState<string | null>(null);
+  const [library, setLibrary] = useState<SoundAsset[]>([]);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setIsLoading(true);
-      setStorageError(null);
-      let migrationWarning: string | null = null;
+    const initAndMigrate = async () => {
       try {
-        await migrateLegacyLocalStorage();
-      } catch (error) {
-        console.error('Unable to migrate legacy cue storage.', error);
-        migrationWarning = error instanceof Error ? error.message : 'Unable to migrate legacy cue storage.';
-      }
-      try {
-        const records = await getCueRecords();
-        if (active) {
-          setLibrary(records);
-          setStorageError(migrationWarning);
+        const STORAGE_KEY = 'library_cues_saved_sounds';
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as SoundAsset[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const sound of parsed) {
+              await saveSound(sound);
+            }
+          }
+          localStorage.removeItem(STORAGE_KEY);
         }
-      } catch (error) {
-        console.error('Unable to load the cue library.', error);
-        if (active) setStorageError(error instanceof Error ? error.message : 'Unable to load the cue library.');
-      } finally {
-        if (active) setIsLoading(false);
+      } catch (err) {
+        console.error('Error migrating from localStorage to IndexedDB', err);
       }
+
+      const savedSounds = await getSounds();
+      setLibrary(savedSounds);
     };
 
-    void load();
-    return () => {
-      active = false;
-    };
+    initAndMigrate();
   }, []);
 
-  const handleSaveCueRecord = useCallback(async (record: StoredCueRecord) => {
-    await saveCueRecord(record);
-    setLibrary((current) => {
-      const exists = current.some((item) => item.id === record.id);
-      const next = exists
-        ? current.map((item) => item.id === record.id ? record : item)
-        : [record, ...current];
-      return next.sort((left, right) => Date.parse(right.cue.createdAt) - Date.parse(left.cue.createdAt));
-    });
-  }, []);
-
-  const handleRemoveFromLibrary = useCallback(async (id: string) => {
-    await deleteCueRecord(id);
-    setLibrary((current) => current.filter((record) => record.id !== id));
-  }, []);
-
-  const handleBulkRemoveFromLibrary = useCallback(async (ids: string[]) => {
-    await deleteCueRecords(ids);
-    const selected = new Set(ids);
-    setLibrary((current) => current.filter((record) => !selected.has(record.id)));
-  }, []);
-
-  const handleRenameLibraryAsset = useCallback(async (id: string, displayName: string) => {
-    const current = library.find((record) => record.id === id);
-    if (!current) return;
-    const updated: StoredCueRecord = {
-      ...current,
-      cue: {
-        ...current.cue,
-        displayName,
-        updatedAt: new Date().toISOString(),
-      },
-    };
-    setLibrary((records) => records.map((record) => record.id === id ? updated : record));
-    try {
-      await saveCueRecord(updated);
-    } catch (error) {
-      setLibrary((records) => records.map((record) => record.id === id ? current : record));
-      setStorageError(error instanceof Error ? error.message : 'Unable to rename this cue.');
-      throw error;
+  const handleKeep = async (asset: SoundAsset) => {
+    if (!library.find(a => a.id === asset.id)) {
+      setLibrary(prev => [asset, ...prev]);
+      await saveSound(asset);
     }
-  }, [library]);
+  };
 
-  const exportKit = useCallback(async (records?: readonly StoredCueRecord[]) => {
-    return downloadCueKit(records ?? library, { mode: records === undefined ? 'approved' : 'explicit' });
-  }, [library]);
+  const handleRemoveFromLibrary = async (id: string) => {
+    setLibrary(prev => prev.filter(v => v.id !== id));
+    await deleteSound(id);
+  };
 
-  const approvedCount = useMemo(
-    () => library.filter((record) => record.cue.curation.status === 'approved').length,
-    [library],
-  );
+  const handleBulkRemoveFromLibrary = async (ids: string[]) => {
+    setLibrary(prev => prev.filter(v => !ids.includes(v.id)));
+    for (const id of ids) {
+      await deleteSound(id);
+    }
+  };
+
+  const handleRenameLibraryAsset = async (id: string, newName: string) => {
+    setLibrary(prev => prev.map(a => a.id === id ? { ...a, name: newName } : a));
+    await updateSoundName(id, newName);
+  };
+
+  const handleUpdateAsset = async (updatedAsset: SoundAsset) => {
+    setLibrary(prev => prev.map(a => a.id === updatedAsset.id ? updatedAsset : a));
+    await saveSound(updatedAsset);
+  };
+
+  const exportKit = async (assetsToExport?: SoundAsset[]) => {
+    const assets = assetsToExport && assetsToExport.length > 0 ? assetsToExport : library;
+    if (assets.length === 0) return;
+    
+    const zip = new JSZip();
+    assets.forEach((asset) => {
+      let ext = 'mp3';
+      if (asset.mimeType?.includes('wav')) {
+        ext = 'wav';
+      } else if (asset.mimeType?.includes('ogg')) {
+        ext = 'ogg';
+      } else if (asset.mimeType?.includes('aac')) {
+        ext = 'aac';
+      }
+      
+      const fileName = `${asset.name.replace(/\s+/g, '_')}.${ext}`;
+      zip.file(`Sounds/${fileName}`, asset.audioBase64, { base64: true });
+    });
+    
+    const content = await zip.generateAsync({ type: 'blob' });
+    saveAs(content, 'library_cues_kit.zip');
+  };
 
   return {
     library,
-    isLoading,
-    storageError,
-    approvedCount,
-    handleSaveCueRecord,
+    handleKeep,
     handleRemoveFromLibrary,
     handleBulkRemoveFromLibrary,
     handleRenameLibraryAsset,
-    exportKit,
+    handleUpdateAsset,
+    exportKit
   };
 }

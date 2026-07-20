@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@seihouse/audio-player": "github:SENSEIDUKES/AUDIO-PLAYER",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
@@ -38,7 +37,6 @@
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
-    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

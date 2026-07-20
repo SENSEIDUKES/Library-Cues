@@ -11,7 +11,9 @@ export interface SoundAsset {
   fileSize?: number;
   previousAudioBase64?: string;
   peaks?: number[];
-  generationParams?: GenerationParams;
+  category?: 'ambient' | 'ui' | 'action' | string;
+  tags?: string[];
+  sourceDescription?: string;
 }
 
 // Categories and types removed as we map directly to API
@@ -26,5 +28,3 @@ export interface GenerationParams {
   fadeIn: number;
   fadeOut: number;
 }
-
-export * from './types/cues';

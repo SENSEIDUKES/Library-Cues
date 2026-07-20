@@ -9,8 +9,8 @@ describe('GenerationControls', () => {
     durationSeconds: 4,
     promptInfluence: 0.7,
     loop: false,
-    trimSilence: false,
-    normalizeLoudness: false,
+    trimSilence: true,
+    normalizeLoudness: true,
     fadeIn: 0,
     fadeOut: 0,
   };
@@ -21,8 +21,6 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={() => {}}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -31,31 +29,12 @@ describe('GenerationControls', () => {
     expect(screen.getByRole('button', { name: /Generate New/i })).toBeInTheDocument();
   });
 
-  it('passes a pasted ElevenLabs key to the session-only key handler', () => {
-    const handleKeyChange = vi.fn();
-    render(
-      <GenerationControls
-        params={defaultParams}
-        onChange={() => {}}
-        onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={handleKeyChange}
-        isGenerating={false}
-      />
-    );
-
-    fireEvent.change(screen.getByLabelText(/ElevenLabs API Key/i), { target: { value: 'sk_test_123' } });
-    expect(handleKeyChange).toHaveBeenCalledWith('sk_test_123');
-  });
-
   it('disables the generate button when isGenerating is true', () => {
     render(
       <GenerationControls
         params={defaultParams}
         onChange={() => {}}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={true}
       />
     );
@@ -71,8 +50,6 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={() => {}}
         onGenerate={handleGenerate}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -89,8 +66,6 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -111,8 +86,6 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -130,8 +103,6 @@ describe('GenerationControls', () => {
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
@@ -144,18 +115,20 @@ describe('GenerationControls', () => {
 
   it('updates loop when toggle is clicked', () => {
     const handleChange = vi.fn();
-    render(
+    const { container } = render(
       <GenerationControls
         params={defaultParams}
         onChange={handleChange}
         onGenerate={() => {}}
-        elevenLabsApiKey=""
-        onElevenLabsApiKeyChange={() => {}}
         isGenerating={false}
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Toggle seamless loop/i }));
+    const buttons = screen.getAllByRole('button');
+    const loopToggle = buttons.find(b => b.className.includes('w-11'));
+    if (loopToggle) {
+      fireEvent.click(loopToggle);
+    }
     expect(handleChange).toHaveBeenCalledWith({ ...defaultParams, loop: true });
   });
 });

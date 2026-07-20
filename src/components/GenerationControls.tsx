@@ -1,70 +1,175 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { GenerationParams } from '../types';
-import { Sparkles, Repeat, Scissors, Activity, ArrowRightFromLine, ArrowLeftToLine } from 'lucide-react';
+import { Sparkles, Repeat, Scissors, Activity, ArrowRightFromLine, ArrowLeftToLine, Loader2 } from 'lucide-react';
 
 interface GenerationControlsProps {
   params: GenerationParams;
   onChange: (params: GenerationParams) => void;
   onGenerate: (count: number, useCache: boolean) => void;
-  elevenLabsApiKey: string;
-  onElevenLabsApiKeyChange: (value: string) => void;
   isGenerating: boolean;
 }
 
-export function GenerationControls({
-  params,
-  onChange,
-  onGenerate,
-  elevenLabsApiKey,
-  onElevenLabsApiKeyChange,
-  isGenerating,
-}: GenerationControlsProps) {
+export function GenerationControls({ params, onChange, onGenerate, isGenerating }: GenerationControlsProps) {
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<'Atmosphere' | 'Actions' | 'Beasts & Combat'>('Atmosphere');
+
+  const presets = [
+    // Atmosphere
+    { name: 'Rain', category: 'Atmosphere' as const, prompt: 'Gentle rain tapping against a glass window, heard from inside a quiet room. Natural uneven droplets, realistic field recording, no thunder, no voices, no music, seamless ambient loop.' },
+    { name: 'Location Signature', category: 'Atmosphere' as const, prompt: 'Ethereal ambient drone marking a mystical location, wind howling through ancient ruins, subtle harmonic whispers, haunting atmosphere' },
+    { name: 'War Horn', category: 'Atmosphere' as const, prompt: 'Deep resonant blast of a massive war horn, booming low-mid frequency, aggressive battle call, distant mountain echo' },
+    { name: 'Sect Bell', category: 'Atmosphere' as const, prompt: 'Heavy bronze temple bell tolling, rich metallic overtones, solemn spiritual resonance, long decay in an open valley' },
+    { name: 'Fate Chime', category: 'Atmosphere' as const, prompt: 'Crystalline celestial chime of fate, solitary resonant bell strike, sparkling stardust tail, infinite ethereal delay' },
+    { name: 'Footstep on Stone', category: 'Atmosphere' as const, prompt: 'A single firm boot step on a stone floor, close and realistic with a short natural echo, no background ambience, no music, one-shot sound effect.' },
+    { name: 'Door Slam', category: 'Atmosphere' as const, prompt: 'A heavy wooden door slamming shut, strong close impact with a brief room echo, no voices, no music, one-shot sound effect.' },
+
+    // Actions
+    { name: 'Sword Swing', category: 'Actions' as const, prompt: 'Swift aerodynamic sword swoosh, sharp metallic wind cleave, high-frequency air displacement, dry close-mic recording' },
+    { name: 'Sword Unsheathe', category: 'Actions' as const, prompt: 'Crisp metallic ring of a sword drawn from a scabbard, bright resonant friction, scraping metal overtone, clean stereo image' },
+    { name: 'Weapon Activation', category: 'Actions' as const, prompt: 'High-tech weapon powering up, ascending electronic hum, glowing plasma crackle, synthetic bass charge, punchy energy surge' },
+    { name: 'Item Manifestation', category: 'Actions' as const, prompt: 'Magical item materializing, ethereal shimmering chimes, soft vacuum implosion, glowing arcane resonance, wide stereo field' },
+    { name: 'Relic Awakening', category: 'Actions' as const, prompt: 'Ancient relic powering on, deep stone grinding, resonant crystal harmonic drone, mystical pulsing energy waves' },
+    { name: 'Artifact Resonance', category: 'Actions' as const, prompt: 'Otherworldly artifact vibrating, sustained eerie harmonic ring, pulsing magnetic hum, metallic singing bowl texture' },
+    { name: 'Formation Activation', category: 'Actions' as const, prompt: 'Magical array formation activating, complex interwoven energy beams, geometric humming tones, crystalline power surge' },
+
+    // Beasts & Combat
+    { name: 'Small Beast Roar', category: 'Beasts & Combat' as const, prompt: 'Guttural snarling roar of a small predatory beast, sharp transient rasps, wet mouth sounds, echoing in a dense forest' },
+    { name: 'Giant Beast Roar', category: 'Beasts & Combat' as const, prompt: 'Massive deafening monster roar, deep chest resonance, ground-shaking low frequency rumble, cavernous acoustic decay' },
+    { name: 'Dragon Roar', category: 'Beasts & Combat' as const, prompt: 'Epic dragon bellow, piercing reptilian screech blending into a sub-bass rumble, fiery breath transients, expansive stereo width' },
+    { name: 'Injured Beast Cry', category: 'Beasts & Combat' as const, prompt: 'A wounded fantasy beast giving a short strained cry, painful and animal-like, weak but still aggressive, no human speech, no music, one-shot sound effect.' },
+    { name: 'Sword Clash', category: 'Beasts & Combat' as const, prompt: 'Two steel swords striking each other with a sharp metallic clash, close and forceful, brief natural ring afterward, no music, one-shot sound effect.' },
+    { name: 'Rapid Sword Exchange', category: 'Beasts & Combat' as const, prompt: 'A fast series of short steel sword clashes during close combat, sharp metallic impacts with quick movement, energetic but not exaggerated, no music, short action sound effect.' },
+    { name: 'Heavy Weapon Impact', category: 'Beasts & Combat' as const, prompt: 'A large metal weapon slamming into a steel blade, heavy metallic impact with a deep ringing tail, powerful and close, no music, one-shot sound effect.' },
+    { name: 'Crowd Chant', category: 'Beasts & Combat' as const, prompt: 'Massive crowd chanting rhythmically in a grand arena, booming unison voices, aggressive percussive stomps, wide stadium reverb' },
+    { name: 'Crowd Gasp', category: 'Beasts & Combat' as const, prompt: 'Sudden collective crowd gasp of shock, sharp inhalation of breath from hundreds of people, tense stadium acoustics' }
+  ];
+
   const updateParam = (key: keyof GenerationParams, value: any) => {
     onChange({ ...params, [key]: value });
   };
 
+  const handleEnhance = async () => {
+    if (!params.prompt.trim() || isEnhancing) return;
+    setIsEnhancing(true);
+    try {
+      const response = await fetch('/api/enhance-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: params.prompt })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to enhance prompt');
+      }
+      const data = await response.json();
+      updateParam('prompt', data.enhancedPrompt);
+    } catch (err) {
+      console.error('Error enhancing prompt:', err);
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full">
-      <div className="flex flex-col gap-2">
-        <label htmlFor="elevenlabs-api-key" className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
-          ElevenLabs API Key <span className="normal-case font-normal tracking-normal text-neutral-600">(optional if configured on the server)</span>
-        </label>
-        <input
-          id="elevenlabs-api-key"
-          type="password"
-          value={elevenLabsApiKey}
-          onChange={(event) => onElevenLabsApiKeyChange(event.target.value)}
-          placeholder="Paste your key here to generate"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          className="w-full bg-neutral-900/40 border border-white/[0.04] rounded-xl px-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/[0.12] focus:ring-1 focus:ring-white/[0.12]"
-        />
-        <p className="text-[10px] leading-relaxed text-neutral-600">Used only for this generation session. It is not saved to this device or the cue library.</p>
-      </div>
-
       {/* Description input */}
       <div className="flex flex-col gap-2">
-        <label className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
-          Sound Description
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
+            Sound Description
+          </label>
+          <span className="text-[10px] text-neutral-600 font-medium">Type simple words, then Enhance</span>
+        </div>
         <div className="relative group">
           <textarea 
             value={params.prompt}
             onChange={(e) => updateParam('prompt', e.target.value)}
             placeholder="e.g. A guttural, echoing roar of a massive beast in a cave..."
-            className="w-full bg-neutral-900/40 border border-white/[0.04] rounded-2xl p-4 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/[0.12] focus:ring-1 focus:ring-white/[0.12] resize-none h-28 transition-all duration-200 backdrop-blur-md leading-relaxed"
+            className="w-full bg-neutral-900/40 border border-white/[0.04] rounded-2xl p-4 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/[0.12] focus:ring-1 focus:ring-white/[0.12] resize-none h-28 transition-all duration-200 backdrop-blur-md leading-relaxed pr-12"
           />
           {params.prompt.length > 0 && (
             <button 
               onClick={() => updateParam('prompt', '')}
-              className="absolute right-3 bottom-3 text-[10px] text-neutral-500 hover:text-neutral-300 font-mono transition-colors"
+              className="absolute right-3 top-3 text-[10px] text-neutral-500 hover:text-neutral-300 font-mono transition-colors"
             >
               Clear
             </button>
           )}
+        </div>
+
+        {/* Apple-styled Inspirations and AI Enhance actions */}
+        <div className="flex flex-col gap-3 mt-1.5 pt-1">
+          {/* Menu Tab System */}
+          <div className="flex flex-col gap-3">
+            <div className="flex border border-white/[0.04] p-0.5 gap-1 self-start bg-neutral-950/60 rounded-xl">
+              {(['Atmosphere', 'Actions', 'Beasts & Combat'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setActiveCategory(cat)}
+                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all cursor-pointer select-none ${
+                    activeCategory === cat
+                      ? 'bg-neutral-900 border border-white/[0.04] text-white shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtered Preset Badges */}
+            <div className="flex flex-wrap gap-1.5 items-center bg-neutral-950/30 p-2.5 rounded-xl border border-white/[0.02]">
+              {presets
+                .filter((p) => p.category === activeCategory)
+                .map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => {
+                      const durationSeconds = preset.category === 'Atmosphere' ? 30 : 3;
+                      const loop = preset.category === 'Atmosphere';
+                      onChange({
+                        ...params,
+                        prompt: preset.prompt,
+                        durationSeconds,
+                        loop
+                      });
+                    }}
+                    className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/40 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95"
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-0.5">
+            <motion.button
+              type="button"
+              whileHover={{ scale: params.prompt.trim() ? 1.01 : 1 }}
+              whileTap={{ scale: params.prompt.trim() ? 0.99 : 1 }}
+              onClick={handleEnhance}
+              disabled={isEnhancing || !params.prompt.trim()}
+              className="relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full overflow-hidden text-xs font-semibold shadow-inner border transition-all cursor-pointer select-none disabled:cursor-not-allowed disabled:opacity-30 bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:text-white"
+            >
+              {isEnhancing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
+                  <span className="text-[11px]">Expanding...</span>
+                </>
+              ) : (
+                <>
+                  {/* Premium Indigo/Cyan micro ambient glow on the AI button when active */}
+                  {params.prompt.trim() && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-violet-600/15 via-indigo-600/15 to-cyan-600/15 animate-pulse -z-10" />
+                  )}
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400/20" />
+                  <span className="text-[11px] font-medium tracking-tight">AI Enhance Prompt</span>
+                </>
+              )}
+            </motion.button>
+          </div>
         </div>
       </div>
 
@@ -78,19 +183,19 @@ export function GenerationControls({
           <div className="relative flex items-center h-6">
             <input 
               type="range" 
-              min="0.5"
+              min="0.1" 
               max="30" 
               step="0.1"
               value={params.durationSeconds}
               onChange={(e) => updateParam('durationSeconds', parseFloat(e.target.value))}
               className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none"
               style={{
-                background: `linear-gradient(to right, #ffffff ${((params.durationSeconds - 0.5) / 29.5) * 100}%, #262626 ${((params.durationSeconds - 0.5) / 29.5) * 100}%)`
+                background: `linear-gradient(to right, #ffffff ${((params.durationSeconds - 0.1) / 29.9) * 100}%, #262626 ${((params.durationSeconds - 0.1) / 29.9) * 100}%)`
               }}
             />
           </div>
           <div className="flex justify-between text-[10px] text-neutral-600 font-mono">
-            <span>0.5s</span>
+            <span>0.1s</span>
             <span>30.0s</span>
           </div>
         </div>
@@ -135,7 +240,6 @@ export function GenerationControls({
         </div>
         <button
           type="button"
-          aria-label="Toggle seamless loop"
           onClick={() => updateParam('loop', !params.loop)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.loop ? 'bg-white' : 'bg-neutral-700'
@@ -164,7 +268,6 @@ export function GenerationControls({
         </div>
         <button
           type="button"
-          aria-label="Toggle trim silence"
           onClick={() => updateParam('trimSilence', !params.trimSilence)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.trimSilence ? 'bg-white' : 'bg-neutral-700'
@@ -193,7 +296,6 @@ export function GenerationControls({
         </div>
         <button
           type="button"
-          aria-label="Toggle normalize loudness"
           onClick={() => updateParam('normalizeLoudness', !params.normalizeLoudness)}
           className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
             params.normalizeLoudness ? 'bg-white' : 'bg-neutral-700'

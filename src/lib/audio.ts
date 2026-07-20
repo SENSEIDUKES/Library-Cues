@@ -1,14 +1,7 @@
-import { base64ByteLength } from './mime';
-
 export interface DecodedAudioData {
   peaks: number[];
   sampleRate: number;
   duration: number;
-}
-
-export interface AudioInspection extends DecodedAudioData {
-  durationMs: number;
-  fileSizeBytes: number;
 }
 
 // Queue system to prevent crashing when decoding 50+ audio files concurrently
@@ -78,15 +71,6 @@ export const decodeAudioBase64 = async (audioBase64: string, numBars: number = 1
   }
 };
 
-export const inspectAudioBase64 = async (audioBase64: string): Promise<AudioInspection> => {
-  const decoded = await decodeAudioBase64(audioBase64);
-  return {
-    ...decoded,
-    durationMs: Math.round(decoded.duration * 1000),
-    fileSizeBytes: base64ByteLength(audioBase64),
-  };
-};
-
 export const generateFallbackPeaks = (numBars: number = 100): number[] => {
   const fallback: number[] = [];
   let current = 0.5;
@@ -96,4 +80,19 @@ export const generateFallbackPeaks = (numBars: number = 100): number[] => {
     fallback.push(current);
   }
   return fallback;
+};
+
+export const createReverbImpulse = (ctx: AudioContext, duration: number, decay: number) => {
+  const sampleRate = ctx.sampleRate;
+  const length = sampleRate * duration;
+  const impulse = ctx.createBuffer(2, length, sampleRate);
+  const left = impulse.getChannelData(0);
+  const right = impulse.getChannelData(1);
+
+  for (let i = 0; i < length; i++) {
+    const n = Math.random() * 2 - 1;
+    left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+  }
+  return impulse;
 };

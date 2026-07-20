@@ -1,179 +1,294 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StoredCueRecord } from './types/cues';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from './App';
 
-const libraryState = vi.hoisted(() => ({ records: [] as StoredCueRecord[] }));
-const saveRecord = vi.hoisted(() => vi.fn());
-const removeRecord = vi.hoisted(() => vi.fn());
-const removeRecords = vi.hoisted(() => vi.fn());
-const renameRecord = vi.hoisted(() => vi.fn());
-const exportKit = vi.hoisted(() => vi.fn());
+let mockLibrary: any[] = [];
 
-vi.mock('./hooks/useSoundLibrary', () => ({
-  useSoundLibrary: () => ({
-    library: libraryState.records,
-    isLoading: false,
-    storageError: null,
-    approvedCount: libraryState.records.filter((record) => record.cue.curation.status === 'approved').length,
-    handleSaveCueRecord: saveRecord,
-    handleRemoveFromLibrary: removeRecord,
-    handleBulkRemoveFromLibrary: removeRecords,
-    handleRenameLibraryAsset: renameRecord,
-    exportKit,
+vi.mock('./lib/storage', () => ({
+  getSounds: vi.fn(async () => {
+    return [...mockLibrary];
+  }),
+  saveSound: vi.fn(async (sound) => {
+    if (!mockLibrary.find(s => s.id === sound.id)) {
+      mockLibrary.push(sound);
+    } else {
+      mockLibrary = mockLibrary.map(s => s.id === sound.id ? sound : s);
+    }
+  }),
+  deleteSound: vi.fn(async (id) => {
+    mockLibrary = mockLibrary.filter(s => s.id !== id);
+  }),
+  updateSoundName: vi.fn(async (id, newName) => {
+    mockLibrary = mockLibrary.map(s => s.id === id ? { ...s, name: newName } : s);
   }),
 }));
 
-vi.mock('./lib/audio', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./lib/audio')>();
+vi.mock('./hooks/useAudioWaveform', () => ({
+  useAudioWaveform: vi.fn(() => ({
+    isPlaying: false,
+    currentTime: 0,
+    displayDuration: 4,
+    togglePlay: vi.fn(),
+    seek: vi.fn(),
+    peaks: [],
+  })),
+}));
+
+// Mock JSZip
+vi.mock('jszip', () => {
   return {
-    ...actual,
-    inspectAudioBase64: vi.fn(async () => ({
-      peaks: [0.2, 0.8],
-      sampleRate: 44100,
-      duration: 1.25,
-      durationMs: 1250,
-      fileSizeBytes: 3,
-    })),
+    default: class JSZip {
+      file = vi.fn();
+      generateAsync = vi.fn(() => Promise.resolve(new Blob()));
+    }
   };
 });
 
-vi.mock('./components/AudioWaveform', () => ({
-  AudioWaveform: ({ asset, onKeep, onReject, onRename, onToggleSelect, onEdit }: any) => (
-    <div data-testid={`waveform-${asset.id}`}>
-      {onToggleSelect && <button aria-label={`Select ${asset.name}`} onClick={onToggleSelect}>Select</button>}
-      {onKeep && <button aria-label={`Keep ${asset.name}`} onClick={onKeep}>Keep</button>}
-      {onEdit && <button aria-label={`Edit ${asset.name}`} onClick={onEdit}>Edit</button>}
-      <input aria-label={`Name ${asset.id}`} value={asset.name} onChange={(event) => onRename?.(event.target.value)} />
-      {onReject && <button title="Delete" onClick={onReject}>Delete</button>}
-    </div>
-  ),
+// Mock file-saver
+vi.mock('file-saver', () => ({
+  saveAs: vi.fn(),
 }));
-
-const cueRecord = (status: 'candidate' | 'approved' = 'candidate'): StoredCueRecord => ({
-  id: `stored-${status}`,
-  audioBase64: 'AQID',
-  cue: {
-    id: `object.ui.click.${status}.01`,
-    version: 1,
-    displayName: `${status} cue`,
-    audio: { fileName: `object-ui-click-${status}-01.mp3`, mimeType: 'audio/mpeg', durationMs: 1000, fileSizeBytes: 3 },
-    category: 'object',
-    family: 'ui',
-    action: 'click',
-    playback: { type: 'one-shot', loopable: false, defaultVolume: 1 },
-    narrative: { intensityRange: { min: 0, max: 1 }, tags: ['ui'] },
-    source: { provider: 'elevenlabs', prompt: 'click' },
-    curation: { status },
-    createdAt: '2026-07-11T12:00:00.000Z',
-    updatedAt: '2026-07-11T12:00:00.000Z',
-  },
-});
 
 describe('App', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    libraryState.records = [];
-    saveRecord.mockImplementation(async (record: StoredCueRecord) => {
-      libraryState.records = [record, ...libraryState.records.filter((item) => item.id !== record.id)];
-    });
-    removeRecord.mockResolvedValue(undefined);
-    removeRecords.mockResolvedValue(undefined);
-    renameRecord.mockResolvedValue(undefined);
-    exportKit.mockImplementation(async (records?: StoredCueRecord[]) => {
-      const cues = (records ?? libraryState.records.filter((record) => record.cue.curation.status === 'approved')).map((record) => record.cue);
-      return { manifest: { cues } };
-    });
+    vi.resetAllMocks();
+    mockLibrary = [];
+    localStorage.clear();
     global.fetch = vi.fn() as any;
-    let generatedId = 0;
-    Object.defineProperty(globalThis.crypto, 'randomUUID', {
-      configurable: true,
-      value: vi.fn(() => `generated-record-id-${++generatedId}`),
-    });
+    
+    // Mock crypto.randomUUID for JSDOM
+    if (!global.crypto) {
+      (global as any).crypto = {};
+    }
+    (global.crypto as any).randomUUID = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
   });
 
-  it('renders the synthesis workspace', () => {
+  it('renders the initial layout', () => {
     render(<App />);
     expect(screen.getByText('Library Cues')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Generate New/i })).toBeInTheDocument();
+    expect(screen.getByText('Synthesize')).toBeInTheDocument();
   });
 
-  it('keeps multiple generated variations available', async () => {
+  it('can switch tabs to library', async () => {
+    render(<App />);
+    const libraryTab = screen.getByText('Saved Kit');
+    fireEvent.click(libraryTab);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Your library is empty')).toBeInTheDocument();
+    });
+  });
+
+  it('generates variations successfully', async () => {
     (global.fetch as any).mockResolvedValue({
       ok: true,
-      json: async () => ({ audioBase64: 'AQID', mimeType: 'audio/mpeg' }),
+      json: async () => ({
+        audioBase64: 'fake-audio-base64',
+        mimeType: 'audio/mpeg',
+      }),
     });
+
     render(<App />);
-    fireEvent.change(screen.getByPlaceholderText(/A guttural/i), { target: { value: 'A fire dragon roar' } });
-    fireEvent.click(screen.getByRole('button', { name: /Variants \(3\)/i }));
-    await waitFor(() => expect(screen.getAllByLabelText(/Name generated-record-id/i)).toHaveLength(3));
+    
+    // Type in prompt
+    const input = screen.getByPlaceholderText(/e.g. A guttural/);
+    fireEvent.change(input, { target: { value: 'Test prompt' } });
+
+    // Click synthesize
+    const synthesizeBtn = screen.getByRole('button', { name: /Variants/i });
+    fireEvent.click(synthesizeBtn);
+
+    // Should show loading state
+    expect(screen.getByText('Generating...')).toBeInTheDocument();
+
+    // Wait for variations to appear
+    await waitFor(() => {
+      expect(screen.getAllByDisplayValue(/SFX - Var/i)).toHaveLength(3);
+    });
+    
     expect(global.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it('surfaces generation errors', async () => {
-    (global.fetch as any).mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'API key rejected' }) });
+  it('handles generation error', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'API Error message' }),
+    });
+
     render(<App />);
-    fireEvent.change(screen.getByPlaceholderText(/A guttural/i), { target: { value: 'A bell' } });
-    fireEvent.click(screen.getByRole('button', { name: /Generate New/i }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('API key rejected');
+    
+    // Type in prompt
+    const input = screen.getByPlaceholderText(/e.g. A guttural/);
+    fireEvent.change(input, { target: { value: 'Test prompt' } });
+
+    // Click synthesize
+    const synthesizeBtn = screen.getByRole('button', { name: /Variants/i });
+    fireEvent.click(synthesizeBtn);
+
+    // Wait for error to appear
+    await waitFor(() => {
+      expect(screen.getByText('API Error message')).toBeInTheDocument();
+    });
   });
 
-  it('opens curation before saving and preserves generation provenance', async () => {
+  it('can keep a variation and remove it from library', async () => {
     (global.fetch as any).mockResolvedValue({
       ok: true,
-      json: async () => ({ audioBase64: 'AQID', mimeType: 'audio/mpeg' }),
+      json: async () => ({
+        audioBase64: 'fake-audio-base64',
+        mimeType: 'audio/mpeg',
+      }),
     });
+
     render(<App />);
-    fireEvent.change(screen.getByPlaceholderText(/A guttural/i), { target: { value: 'A distant bell' } });
-    fireEvent.click(screen.getByRole('button', { name: /Generate New/i }));
-    await screen.findByLabelText('Keep SFX');
-    fireEvent.click(screen.getByLabelText('Keep SFX'));
+    
+    // Generate
+    const input = screen.getByPlaceholderText(/e.g. A guttural/);
+    fireEvent.change(input, { target: { value: 'Test prompt' } });
+    fireEvent.click(screen.getByRole('button', { name: /Variants/i }));
 
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(saveRecord).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Distant Bell' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save cue' }));
-
-    await waitFor(() => expect(saveRecord).toHaveBeenCalledTimes(1));
-    const saved = saveRecord.mock.calls[0][0] as StoredCueRecord;
-    expect(saved.cue.id).toBe('object.uncategorized.unknown.01');
-    expect(saved.cue.curation.status).toBe('candidate');
-    expect(saved.cue.source).toMatchObject({
-      provider: 'elevenlabs',
-      prompt: 'A distant bell',
-      promptInfluence: 0.7,
-      requestedDurationSeconds: 4,
-      requestedLoop: false,
+    await waitFor(() => {
+      expect(screen.getAllByDisplayValue(/SFX - Var/i)).toHaveLength(3);
     });
-    expect(saved.cue.audio).toMatchObject({ mimeType: 'audio/mpeg', durationMs: 1250, fileSizeBytes: 3 });
+
+    // We need to keep a variation. The AudioWaveform component renders an input with the name 'SFX - Var 1'
+    // The keep button is the first button inside each AudioWaveform
+    const var1Input = screen.getByDisplayValue('SFX - Var 1');
+    const waveformDiv = var1Input.closest('div.p-4');
+    const keepBtn = waveformDiv?.querySelectorAll('button')[0];
+    if (keepBtn) {
+      fireEvent.click(keepBtn);
+    }
+
+    // Now switch to library tab
+    fireEvent.click(screen.getByText('Saved Kit'));
+
+    await waitFor(() => {
+      // In the library tab, we should see the kept variation
+      expect(screen.queryByText('Your library is empty')).not.toBeInTheDocument();
+      // Ensure we are fully switched by waiting for Synthesize button to disappear
+      expect(screen.queryByRole('button', { name: /Variants/i })).not.toBeInTheDocument();
+    });
+
+    // Rename the variation in the library
+    const libraryInput = screen.getByDisplayValue('SFX - Var 1');
+    fireEvent.change(libraryInput, { target: { value: 'Renamed Var' } });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Renamed Var')).toBeInTheDocument();
+    });
+
+    // Remove from library
+    // The library tab AudioWaveform delete button
+    const renamedInput = screen.getByDisplayValue('Renamed Var');
+    const libraryWaveformDiv = renamedInput.closest('div.p-4');
+    // find the button with title "Delete"
+    const deleteBtn = libraryWaveformDiv?.querySelector('button[title="Delete"]');
+    if (deleteBtn) {
+      fireEvent.click(deleteBtn);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText('Your library is empty')).toBeInTheDocument();
+    });
+
+    // Test Open Synthesizer button in empty library
+    const openSynthBtn = screen.getByRole('button', { name: /Open Synthesizer/i });
+    fireEvent.click(openSynthBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Variants/i })).toBeInTheDocument();
+    });
+
+    // Switch back to library using bottom nav
+    const libraryNavBtn = screen.getByText('Saved Kit').closest('button');
+    if (libraryNavBtn) {
+      fireEvent.click(libraryNavBtn);
+    }
+    await waitFor(() => {
+      expect(screen.getByText('Your library is empty')).toBeInTheDocument();
+    });
+
+    // Switch back to synthesize using bottom nav
+    const synthesizeNavBtn = screen.getByText('Synthesize').closest('button');
+    if (synthesizeNavBtn) {
+      fireEvent.click(synthesizeNavBtn);
+    }
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Variants/i })).toBeInTheDocument();
+    });
   });
 
-  it('does not persist invalid category-specific metadata', async () => {
-    (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({ audioBase64: 'AQID', mimeType: 'audio/mpeg' }) });
+  it('can reject and rename a variation in the synthesize tab', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        audioBase64: 'fake-audio-base64',
+        mimeType: 'audio/mpeg',
+      }),
+    });
+
     render(<App />);
-    fireEvent.change(screen.getByPlaceholderText(/A guttural/i), { target: { value: 'A creature' } });
-    fireEvent.click(screen.getByRole('button', { name: /Generate New/i }));
-    fireEvent.click(await screen.findByLabelText('Keep SFX'));
-    fireEvent.change(await screen.findByLabelText('Category'), { target: { value: 'beast' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save cue' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Choose at least one beast matching value');
-    expect(saveRecord).not.toHaveBeenCalled();
+    
+    // Generate
+    const input = screen.getByPlaceholderText(/e.g. A guttural/);
+    fireEvent.change(input, { target: { value: 'Test prompt' } });
+    fireEvent.click(screen.getByRole('button', { name: /Variants/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByDisplayValue(/SFX - Var/i)).toHaveLength(3);
+    });
+
+    // Rename
+    const var1Input = screen.getByDisplayValue('SFX - Var 1');
+    fireEvent.change(var1Input, { target: { value: 'Renamed Variation' } });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Renamed Variation')).toBeInTheDocument();
+    });
+
+    // Reject (delete) variation
+    const waveformDiv = screen.getByDisplayValue('Renamed Variation').closest('div.p-4');
+    const deleteBtn = waveformDiv?.querySelector('button[title="Delete"]');
+    if (deleteBtn) {
+      fireEvent.click(deleteBtn);
+    }
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('Renamed Variation')).not.toBeInTheDocument();
+      // Only 2 should remain
+      expect(screen.getAllByDisplayValue(/SFX - Var/i)).toHaveLength(2);
+    });
   });
 
-  it('exports explicitly selected candidates', async () => {
-    libraryState.records = [cueRecord('candidate')];
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Saved Kit/i }));
-    fireEvent.click(await screen.findByRole('button', { name: /Select All/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    await waitFor(() => expect(exportKit).toHaveBeenCalledWith([libraryState.records[0]]));
-  });
+  it('can export kit', async () => {
+    // Mock local storage to have an item
+    const mockLibrary = [{
+      id: '1',
+      name: 'Saved Sound',
+      prompt: 'A test prompt',
+      audioBase64: 'fake-audio',
+      mimeType: 'audio/mpeg',
+      createdAt: Date.now(),
+      durationSeconds: 4,
+      loop: false
+    }];
+    localStorage.setItem('library_cues_saved_sounds', JSON.stringify(mockLibrary));
 
-  it('defaults full export to approved cues', async () => {
-    libraryState.records = [cueRecord('candidate'), cueRecord('approved')];
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Saved Kit/i }));
-    fireEvent.click(await screen.findByRole('button', { name: /Export Approved \(1\)/i }));
-    await waitFor(() => expect(exportKit).toHaveBeenCalledWith());
+    
+    // Switch to library tab to see the export button
+    fireEvent.click(screen.getByText('Saved Kit'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Export Kit')).toBeInTheDocument();
+    });
+
+    const exportBtn = screen.getByText('Export Kit');
+    fireEvent.click(exportBtn);
+
+    // test that saveAs was called. We mocked file-saver
+    const { saveAs } = await import('file-saver');
+    await waitFor(() => {
+      expect(saveAs).toHaveBeenCalled();
+    });
   });
 });
