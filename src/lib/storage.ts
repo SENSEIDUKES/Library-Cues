@@ -14,7 +14,7 @@ let dbPromise: ReturnType<typeof openDB> | null = null;
 export const initDB = async () => {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, 2, {
-      upgrade(db, oldVersion) {
+      upgrade(db, _oldVersion) {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         }

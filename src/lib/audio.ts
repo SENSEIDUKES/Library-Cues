@@ -90,7 +90,6 @@ export const createReverbImpulse = (ctx: AudioContext, duration: number, decay: 
   const right = impulse.getChannelData(1);
 
   for (let i = 0; i < length; i++) {
-    const n = Math.random() * 2 - 1;
     left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
     right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
   }
@@ -204,7 +203,7 @@ export function blobToBase64(blob: Blob): Promise<string> {
 
 export const bakeEffectsOnClientSide = async (
   audioBase64: string,
-  mimeType: string,
+  _mimeType: string,
   playbackRate: number,
   filterFreq: number,
   delayFeedback: number,

@@ -115,7 +115,6 @@ export function AudioWaveform({
   };
   
   const {
-    audioRef,
     isPlaying,
     currentTime,
     displayDuration,

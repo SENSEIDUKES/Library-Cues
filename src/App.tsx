@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GenerationParams, SoundAsset } from './types';
 import { GenerationControls } from './components/GenerationControls';
 import { AudioWaveform } from './components/AudioWaveform';
-import { FolderArchive, Library, Sparkles, AlertTriangle, Music, CheckSquare, Square, Trash2, Download, CheckCircle, FileText, Terminal, X, Copy, Check, Info, ArrowRight, Search, SlidersHorizontal, Plus, Pencil, Grid, List, ChevronLeft, ChevronRight, ChevronDown, Folder, Keyboard, Cpu, Database, RefreshCw, Play, Loader2, Circle, Activity } from 'lucide-react';
+import { FolderArchive, Library, Sparkles, AlertTriangle, CheckSquare, Square, Trash2, Download, CheckCircle, Terminal, X, Copy, Info, ArrowRight, Search, Plus, Pencil, Grid, List, ChevronLeft, ChevronRight, ChevronDown, Folder, Keyboard, Cpu, Database, RefreshCw, Play, Circle, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSoundLibrary } from './hooks/useSoundLibrary';
 import { cn } from './lib/utils';

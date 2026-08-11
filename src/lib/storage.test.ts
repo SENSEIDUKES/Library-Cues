@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SoundAsset } from '../types';
 
 // Create a mock store and a mock db to test the IndexedDB operations.
@@ -17,10 +17,6 @@ const mockDelete = vi.fn(async (id: string) => {
   if (shouldIdbFail) throw new Error('IndexedDB delete failed');
   delete mockStore[id];
 });
-const mockGetAll = vi.fn(async () => {
-  if (shouldIdbFail) throw new Error('IndexedDB getAll failed');
-  return Object.values(mockStore);
-});
 
 const mockTx = {
   store: {
@@ -36,15 +32,15 @@ const mockTx = {
 };
 
 const mockDb = {
-  put: vi.fn(async (store: string, sound: any) => {
+  put: vi.fn(async (_store: string, sound: any) => {
     if (shouldIdbFail) throw new Error('IndexedDB put failed');
     mockStore[sound.id] = sound;
   }),
-  getAll: vi.fn(async (store: string) => {
+  getAll: vi.fn(async (_store: string) => {
     if (shouldIdbFail) throw new Error('IndexedDB getAll failed');
     return Object.values(mockStore);
   }),
-  delete: vi.fn(async (store: string, id: string) => {
+  delete: vi.fn(async (_store: string, id: string) => {
     if (shouldIdbFail) throw new Error('IndexedDB delete failed');
     delete mockStore[id];
   }),

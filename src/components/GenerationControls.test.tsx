@@ -115,7 +115,7 @@ describe('GenerationControls', () => {
 
   it('updates loop when toggle is clicked', () => {
     const handleChange = vi.fn();
-    const { container } = render(
+    render(
       <GenerationControls
         params={defaultParams}
         onChange={handleChange}
@@ -130,5 +130,43 @@ describe('GenerationControls', () => {
       fireEvent.click(loopToggle);
     }
     expect(handleChange).toHaveBeenCalledWith({ ...defaultParams, loop: true });
+  });
+
+  it('renders beast sound selection UI in structured table format with subcategories', () => {
+    const handleChange = vi.fn();
+    render(
+      <GenerationControls
+        params={defaultParams}
+        onChange={handleChange}
+        onGenerate={() => {}}
+        isGenerating={false}
+      />
+    );
+
+    // Click on Beasts category tab
+    const beastsTab = screen.getByRole('button', { name: /^BEASTS$/i });
+    fireEvent.click(beastsTab);
+
+    // Verify header "Beast Type" is displayed
+    expect(screen.getByText('Beast Type')).toBeInTheDocument();
+
+    // Verify subcategories are present
+    expect(screen.getByText('Calls & Whispers')).toBeInTheDocument();
+    expect(screen.getByText('Serpents & Hisses')).toBeInTheDocument();
+    expect(screen.getByText('Howls & Echoes')).toBeInTheDocument();
+    expect(screen.getByText('Roars & Growls')).toBeInTheDocument();
+    expect(screen.getByText('Divine & Mythic Beasts')).toBeInTheDocument();
+
+    // Click a preset button under Divine & Mythic Beasts
+    const dragonPreset = screen.getByRole('button', { name: /Celestial Dragon Roar/i });
+    fireEvent.click(dragonPreset);
+
+    expect(handleChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining('celestial dragon roar'),
+        durationSeconds: 5,
+        loop: false
+      })
+    );
   });
 });

@@ -153,67 +153,71 @@ export const soundPresets: SoundPreset[] = [
   // =========================================================================
   // BEASTS
   // =========================================================================
-  { name: 'Small Beast Call', category: 'Beasts' as const, prompt: 'High quality sound effect of small beast call, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Medium Beast Call', category: 'Beasts' as const, prompt: 'High quality sound effect of medium beast call, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Small Beast Hiss', category: 'Beasts' as const, prompt: 'High quality sound effect of small beast hiss, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Small Serpent Hiss', category: 'Beasts' as const, prompt: 'High quality sound effect of small serpent hiss, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Medium Serpent Hiss', category: 'Beasts' as const, prompt: 'High quality sound effect of medium serpent hiss, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Giant Serpent Hiss', category: 'Beasts' as const, prompt: 'High quality sound effect of giant serpent hiss, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Small Beast Howl', category: 'Beasts' as const, prompt: 'High quality sound effect of small beast howl, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Medium Beast Howl', category: 'Beasts' as const, prompt: 'High quality sound effect of medium beast howl, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Giant Beast Howl', category: 'Beasts' as const, prompt: 'High quality sound effect of giant beast howl, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Small Beast Roar', category: 'Beasts' as const, prompt: 'High quality sound effect of small beast roar, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Medium Beast Roar', category: 'Beasts' as const, prompt: 'High quality sound effect of medium beast roar, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Giant Beast Roar', category: 'Beasts' as const, prompt: 'High quality sound effect of giant beast roar, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Small Beast Call', category: 'Beasts' as const, subcategory: 'Calls & Whispers', prompt: 'High quality sound effect of small beast call, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Medium Beast Call', category: 'Beasts' as const, subcategory: 'Calls & Whispers', prompt: 'High quality sound effect of medium beast call, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Nine-Tailed Fox Whispers', category: 'Beasts' as const, subcategory: 'Calls & Whispers', prompt: 'High quality sound effect of ethereal spirit fox chitters, mysterious fox spirit vocalization, subtle Eastern fantasy sound.' },
+  { name: 'Small Beast Hiss', category: 'Beasts' as const, subcategory: 'Serpents & Hisses', prompt: 'High quality sound effect of small beast hiss, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Small Serpent Hiss', category: 'Beasts' as const, subcategory: 'Serpents & Hisses', prompt: 'High quality sound effect of small serpent hiss, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Medium Serpent Hiss', category: 'Beasts' as const, subcategory: 'Serpents & Hisses', prompt: 'High quality sound effect of medium serpent hiss, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Giant Serpent Hiss', category: 'Beasts' as const, subcategory: 'Serpents & Hisses', prompt: 'High quality sound effect of giant serpent hiss, deep resonance, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Small Beast Howl', category: 'Beasts' as const, subcategory: 'Howls & Echoes', prompt: 'High quality sound effect of small beast howl, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Medium Beast Howl', category: 'Beasts' as const, subcategory: 'Howls & Echoes', prompt: 'High quality sound effect of medium beast howl, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Giant Beast Howl', category: 'Beasts' as const, subcategory: 'Howls & Echoes', prompt: 'High quality sound effect of giant beast howl, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Small Beast Roar', category: 'Beasts' as const, subcategory: 'Roars & Growls', prompt: 'High quality sound effect of small beast roar, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Medium Beast Roar', category: 'Beasts' as const, subcategory: 'Roars & Growls', prompt: 'High quality sound effect of medium beast roar, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Giant Beast Roar', category: 'Beasts' as const, subcategory: 'Roars & Growls', prompt: 'High quality sound effect of giant beast roar, thunderous guttural echo, realistic fantasy game audio.' },
+  { name: 'Celestial Dragon Roar', category: 'Beasts' as const, subcategory: 'Divine & Mythic Beasts', prompt: 'High quality sound effect of a legendary celestial dragon roar, booming divine roar echoing across clouds, mist, and mountain crests.' },
+  { name: 'Crimson Phoenix Cry', category: 'Beasts' as const, subcategory: 'Divine & Mythic Beasts', prompt: 'High quality sound effect of a majestic phoenix cry, burning fiery bird screech, sharp divine bird vocalization.' },
+  { name: 'Kirin Bellow', category: 'Beasts' as const, subcategory: 'Divine & Mythic Beasts', prompt: 'High quality sound effect of a Kirin beast bellow, thunderous thunder-beast voice, deep sacred creature growl.' },
 
   // =========================================================================
   // WEAPONS
   // =========================================================================
-  { name: 'Sword Impact', category: 'Weapons' as const, prompt: 'High quality sound effect of sword impact, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Heavy Weapon Impact', category: 'Weapons' as const, prompt: 'High quality sound effect of heavy weapon impact, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Sword Swing', category: 'Weapons' as const, prompt: 'High quality sound effect of sword swing, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Heavy Weapon Swing', category: 'Weapons' as const, prompt: 'High quality sound effect of heavy weapon swing, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Sword Unsheathe', category: 'Weapons' as const, prompt: 'High quality sound effect of sword unsheathe, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Heavy Blade Unsheathe', category: 'Weapons' as const, prompt: 'High quality sound effect of heavy blade unsheathe, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Bow Shot', category: 'Weapons' as const, prompt: 'High quality sound effect of bow shot, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Magical Projectile', category: 'Weapons' as const, prompt: 'High quality sound effect of magical projectile, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Spell Cast', category: 'Weapons' as const, prompt: 'High quality sound effect of spell cast, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Spell Impact', category: 'Weapons' as const, prompt: 'High quality sound effect of spell impact, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Sword Impact', category: 'Weapons' as const, subcategory: 'Blades & Steel', prompt: 'High quality sound effect of sword impact, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Sword Swing', category: 'Weapons' as const, subcategory: 'Blades & Steel', prompt: 'High quality sound effect of sword swing, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Sword Unsheathe', category: 'Weapons' as const, subcategory: 'Blades & Steel', prompt: 'High quality sound effect of sword unsheathe, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Heavy Blade Unsheathe', category: 'Weapons' as const, subcategory: 'Blades & Steel', prompt: 'High quality sound effect of heavy blade unsheathe, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Heavy Weapon Impact', category: 'Weapons' as const, subcategory: 'Heavy Weapons', prompt: 'High quality sound effect of heavy weapon impact, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Heavy Weapon Swing', category: 'Weapons' as const, subcategory: 'Heavy Weapons', prompt: 'High quality sound effect of heavy weapon swing, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Bow Shot', category: 'Weapons' as const, subcategory: 'Ranged Weapons', prompt: 'High quality sound effect of bow shot, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Magical Projectile', category: 'Weapons' as const, subcategory: 'Magic & Spells', prompt: 'High quality sound effect of magical projectile, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Spell Cast', category: 'Weapons' as const, subcategory: 'Magic & Spells', prompt: 'High quality sound effect of spell cast, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Spell Impact', category: 'Weapons' as const, subcategory: 'Magic & Spells', prompt: 'High quality sound effect of spell impact, clear and detailed, realistic fantasy game audio.' },
 
   // =========================================================================
   // ARTIFACTS/RELICS
   // =========================================================================
-  { name: 'Artifact Activation', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of artifact activation, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Artifact Broken', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of artifact broken, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Artifact Lost', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of artifact lost, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Artifact Upgrade', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of artifact upgrade, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Relic Pulse', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of relic pulse, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Relic Resonance', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of relic resonance, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Relic Awakening', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of relic awakening, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Relic Manifestation', category: 'Artifacts/Relics' as const, prompt: 'High quality sound effect of relic manifestation, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Artifact Activation', category: 'Artifacts/Relics' as const, subcategory: 'Artifact Controls', prompt: 'High quality sound effect of artifact activation, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Artifact Broken', category: 'Artifacts/Relics' as const, subcategory: 'Artifact Controls', prompt: 'High quality sound effect of artifact broken, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Artifact Lost', category: 'Artifacts/Relics' as const, subcategory: 'Artifact Controls', prompt: 'High quality sound effect of artifact lost, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Artifact Upgrade', category: 'Artifacts/Relics' as const, subcategory: 'Artifact Controls', prompt: 'High quality sound effect of artifact upgrade, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Relic Pulse', category: 'Artifacts/Relics' as const, subcategory: 'Relic Energies', prompt: 'High quality sound effect of relic pulse, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Relic Resonance', category: 'Artifacts/Relics' as const, subcategory: 'Relic Energies', prompt: 'High quality sound effect of relic resonance, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Relic Awakening', category: 'Artifacts/Relics' as const, subcategory: 'Relic Energies', prompt: 'High quality sound effect of relic awakening, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Relic Manifestation', category: 'Artifacts/Relics' as const, subcategory: 'Relic Energies', prompt: 'High quality sound effect of relic manifestation, clear and detailed, realistic fantasy game audio.' },
 
   // =========================================================================
   // LOCATIONS
   // =========================================================================
-  { name: 'Location Atmosphere', category: 'Locations' as const, prompt: 'High quality sound effect of location atmosphere, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Location Signature', category: 'Locations' as const, prompt: 'High quality sound effect of location signature, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Crowd Cheer', category: 'Locations' as const, prompt: 'High quality sound effect of crowd cheer, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Crowd Chant', category: 'Locations' as const, prompt: 'High quality sound effect of crowd chant, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Crowd Gasp', category: 'Locations' as const, prompt: 'High quality sound effect of crowd gasp, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Crowd Panic', category: 'Locations' as const, prompt: 'High quality sound effect of crowd panic, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Crowd Reverence', category: 'Locations' as const, prompt: 'High quality sound effect of crowd reverence, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Location Atmosphere', category: 'Locations' as const, subcategory: 'Environment & Ambience', prompt: 'High quality sound effect of location atmosphere, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Location Signature', category: 'Locations' as const, subcategory: 'Environment & Ambience', prompt: 'High quality sound effect of location signature, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Crowd Cheer', category: 'Locations' as const, subcategory: 'Crowd Expressions', prompt: 'High quality sound effect of crowd cheer, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Crowd Chant', category: 'Locations' as const, subcategory: 'Crowd Expressions', prompt: 'High quality sound effect of crowd chant, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Crowd Gasp', category: 'Locations' as const, subcategory: 'Crowd Expressions', prompt: 'High quality sound effect of crowd gasp, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Crowd Panic', category: 'Locations' as const, subcategory: 'Crowd Expressions', prompt: 'High quality sound effect of crowd panic, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Crowd Reverence', category: 'Locations' as const, subcategory: 'Crowd Expressions', prompt: 'High quality sound effect of crowd reverence, clear and detailed, realistic fantasy game audio.' },
 
   // =========================================================================
   // FACTIONS/RITUALS
   // =========================================================================
-  { name: 'Faction Bell', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of faction bell, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Faction Ceremony', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of faction ceremony, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Faction Chant', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of faction chant, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Faction Horn', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of faction horn, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Faction Signature', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of faction signature, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Ritual Chant', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of ritual chant, clear and detailed, realistic fantasy game audio.' },
-  { name: 'War Chant', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of war chant, clear and detailed, realistic fantasy game audio.' },
-  { name: 'Sect Warning Bell', category: 'Factions/Rituals' as const, prompt: 'High quality sound effect of sect warning bell, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Faction Bell', category: 'Factions/Rituals' as const, subcategory: 'Bells & Horns', prompt: 'High quality sound effect of faction bell, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Faction Horn', category: 'Factions/Rituals' as const, subcategory: 'Bells & Horns', prompt: 'High quality sound effect of faction horn, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Sect Warning Bell', category: 'Factions/Rituals' as const, subcategory: 'Bells & Horns', prompt: 'High quality sound effect of sect warning bell, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Faction Ceremony', category: 'Factions/Rituals' as const, subcategory: 'Chants & Ceremonies', prompt: 'High quality sound effect of faction ceremony, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Faction Chant', category: 'Factions/Rituals' as const, subcategory: 'Chants & Ceremonies', prompt: 'High quality sound effect of faction chant, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Faction Signature', category: 'Factions/Rituals' as const, subcategory: 'Chants & Ceremonies', prompt: 'High quality sound effect of faction signature, clear and detailed, realistic fantasy game audio.' },
+  { name: 'Ritual Chant', category: 'Factions/Rituals' as const, subcategory: 'Chants & Ceremonies', prompt: 'High quality sound effect of ritual chant, clear and detailed, realistic fantasy game audio.' },
+  { name: 'War Chant', category: 'Factions/Rituals' as const, subcategory: 'Chants & Ceremonies', prompt: 'High quality sound effect of war chant, clear and detailed, realistic fantasy game audio.' },
 
   // =========================================================================
   // SYSTEM/FATE

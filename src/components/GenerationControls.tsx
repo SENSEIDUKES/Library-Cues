@@ -89,164 +89,145 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
               ))}
             </div>
 
-            {/* Filtered Preset Badges / Premium Atmospheric Grid Table */}
-            {activeCategory === 'Atmosphere' ? (
-              <div className="border border-white/[0.04] bg-neutral-950/40 rounded-xl overflow-hidden backdrop-blur-md">
-                {/* Table Header */}
-                <div className="grid grid-cols-[100px_1fr] md:grid-cols-[140px_1fr] border-b border-white/[0.04] bg-white/[0.02] px-4 py-2.5 text-[9px] font-bold tracking-wider uppercase text-neutral-500 font-sans">
-                  <div>Atmosphere Type</div>
-                  <div>Example Variations</div>
-                </div>
+            {/* Filtered Preset Badges / Premium Grid Table Look */}
+            {(() => {
+              const categoryConfig: Record<PresetCategory, { headerLabel: string; subcats: string[] }> = {
+                Atmosphere: {
+                  headerLabel: 'Atmosphere Type',
+                  subcats: ['Wind', 'Crowd', 'Waves', 'Rain', 'Combat', 'Noise']
+                },
+                Beasts: {
+                  headerLabel: 'Beast Type',
+                  subcats: ['Calls & Whispers', 'Serpents & Hisses', 'Howls & Echoes', 'Roars & Growls', 'Divine & Mythic Beasts']
+                },
+                'System/Fate': {
+                  headerLabel: 'System Type',
+                  subcats: ['Open / Reveal', 'Close / Dismiss', 'Confirm / Success', 'Alert / Failure']
+                },
+                Weapons: {
+                  headerLabel: 'Weapon Type',
+                  subcats: ['Blades & Steel', 'Heavy Weapons', 'Ranged Weapons', 'Magic & Spells']
+                },
+                'Artifacts/Relics': {
+                  headerLabel: 'Artifact Type',
+                  subcats: ['Artifact Controls', 'Relic Energies']
+                },
+                Locations: {
+                  headerLabel: 'Location Type',
+                  subcats: ['Environment & Ambience', 'Crowd Expressions']
+                },
+                'Factions/Rituals': {
+                  headerLabel: 'Faction Type',
+                  subcats: ['Bells & Horns', 'Chants & Ceremonies']
+                }
+              };
 
-                {/* Table Rows */}
-                <div className="divide-y divide-white/[0.02] max-h-72 overflow-y-auto custom-scrollbar">
-                  {(['Wind', 'Crowd', 'Waves', 'Rain', 'Combat', 'Noise'] as const).map((subcat) => {
-                    const filteredPresets = soundPresets.filter(
-                      (p) => p.category === 'Atmosphere' && p.subcategory === subcat
-                    );
+              const subcatColors: Record<string, string> = {
+                // Atmosphere
+                Wind: 'bg-sky-400 shadow-sky-400/20',
+                Crowd: 'bg-amber-400 shadow-amber-400/20',
+                Waves: 'bg-cyan-500 shadow-cyan-500/20',
+                Rain: 'bg-blue-400 shadow-blue-400/20',
+                Combat: 'bg-rose-500 shadow-rose-500/20',
+                Noise: 'bg-neutral-400 shadow-neutral-400/20',
+                // Beasts
+                'Calls & Whispers': 'bg-teal-400 shadow-teal-400/20',
+                'Serpents & Hisses': 'bg-emerald-400 shadow-emerald-400/20',
+                'Howls & Echoes': 'bg-purple-400 shadow-purple-400/20',
+                'Roars & Growls': 'bg-amber-500 shadow-amber-500/20',
+                'Divine & Mythic Beasts': 'bg-rose-400 shadow-rose-400/20',
+                // System/Fate
+                'Open / Reveal': 'bg-indigo-400 shadow-indigo-400/20',
+                'Close / Dismiss': 'bg-neutral-400 shadow-neutral-400/20',
+                'Confirm / Success': 'bg-emerald-400 shadow-emerald-400/20',
+                'Alert / Failure': 'bg-rose-500 shadow-rose-500/20',
+                // Weapons
+                'Blades & Steel': 'bg-slate-300 shadow-slate-300/20',
+                'Heavy Weapons': 'bg-orange-500 shadow-orange-500/20',
+                'Ranged Weapons': 'bg-lime-400 shadow-lime-400/20',
+                'Magic & Spells': 'bg-violet-400 shadow-violet-400/20',
+                // Artifacts
+                'Artifact Controls': 'bg-yellow-400 shadow-yellow-400/20',
+                'Relic Energies': 'bg-fuchsia-400 shadow-fuchsia-400/20',
+                // Locations
+                'Environment & Ambience': 'bg-emerald-300 shadow-emerald-300/20',
+                'Crowd Expressions': 'bg-sky-300 shadow-sky-300/20',
+                // Factions
+                'Bells & Horns': 'bg-amber-300 shadow-amber-300/20',
+                'Chants & Ceremonies': 'bg-red-400 shadow-red-400/20'
+              };
 
-                    // Dynamic subcategory color indicator
-                    const subcatColors: Record<string, string> = {
-                      Wind: 'bg-sky-400 shadow-sky-400/20',
-                      Crowd: 'bg-amber-400 shadow-amber-400/20',
-                      Waves: 'bg-cyan-500 shadow-cyan-500/20',
-                      Rain: 'bg-blue-400 shadow-blue-400/20',
-                      Combat: 'bg-rose-500 shadow-rose-500/20',
-                      Noise: 'bg-neutral-400 shadow-neutral-400/20'
-                    };
+              const currentConfig = categoryConfig[activeCategory];
+              if (!currentConfig) return null;
 
-                    const dotColor = subcatColors[subcat] || 'bg-neutral-500';
+              return (
+                <div className="border border-white/[0.04] bg-neutral-950/40 rounded-xl overflow-hidden backdrop-blur-md">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] border-b border-white/[0.04] bg-white/[0.02] px-4 py-2.5 text-[9px] font-bold tracking-wider uppercase text-neutral-500 font-sans">
+                    <div>{currentConfig.headerLabel}</div>
+                    <div>Example Variations</div>
+                  </div>
 
-                    return (
-                      <div 
-                        key={subcat} 
-                        className="grid grid-cols-[100px_1fr] md:grid-cols-[140px_1fr] items-start px-4 py-3.5 hover:bg-white/[0.01] transition-all"
-                      >
-                        {/* Subcategory Label */}
-                        <div className="flex items-center gap-2 pr-2 py-1 select-none">
-                          <span className={`w-2 h-2 rounded-full ${dotColor} shadow-sm animate-pulse shrink-0`} />
-                          <span className="text-xs font-semibold text-neutral-200 font-sans tracking-wide">
-                            {subcat}
-                          </span>
+                  {/* Table Rows */}
+                  <div className="divide-y divide-white/[0.02] max-h-72 overflow-y-auto custom-scrollbar">
+                    {currentConfig.subcats.map((subcat) => {
+                      const filteredPresets = soundPresets.filter(
+                        (p) => p.category === activeCategory && p.subcategory === subcat
+                      );
+
+                      const dotColor = subcatColors[subcat] || 'bg-neutral-500';
+
+                      return (
+                        <div 
+                          key={subcat} 
+                          className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] items-start px-4 py-3.5 hover:bg-white/[0.01] transition-all"
+                        >
+                          {/* Subcategory Label */}
+                          <div className="flex items-center gap-2 pr-2 py-1 select-none">
+                            <span className={`w-2 h-2 rounded-full ${dotColor} shadow-sm animate-pulse shrink-0`} />
+                            <span className="text-xs font-semibold text-neutral-200 font-sans tracking-wide">
+                              {subcat}
+                            </span>
+                          </div>
+
+                          {/* Presets Grid */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {filteredPresets.map((preset) => (
+                              <button
+                                key={preset.name}
+                                type="button"
+                                onClick={() => {
+                                  let durationSeconds = 3;
+                                  let loop = false;
+                                  if (preset.category === 'Atmosphere' || preset.category === 'Locations') {
+                                    durationSeconds = 30;
+                                    loop = true;
+                                  } else if (preset.category === 'System/Fate') {
+                                    durationSeconds = 1.5;
+                                  } else if (preset.subcategory === 'Divine & Mythic Beasts') {
+                                    durationSeconds = 5;
+                                  }
+
+                                  onChange({
+                                    ...params,
+                                    prompt: preset.prompt,
+                                    durationSeconds,
+                                    loop
+                                  });
+                                }}
+                                className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/60 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95 shadow-sm"
+                              >
+                                {preset.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-
-                        {/* Presets Grid */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {filteredPresets.map((preset) => (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              onClick={() => {
-                                const durationSeconds = 30; // Atmospheres default to longer duration
-                                const loop = true;
-                                onChange({
-                                  ...params,
-                                  prompt: preset.prompt,
-                                  durationSeconds,
-                                  loop
-                                });
-                              }}
-                              className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/60 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95 shadow-sm"
-                            >
-                              {preset.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ) : activeCategory === 'System/Fate' ? (
-              <div className="border border-white/[0.04] bg-neutral-950/40 rounded-xl overflow-hidden backdrop-blur-md">
-                {/* Table Header */}
-                <div className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] border-b border-white/[0.04] bg-white/[0.02] px-4 py-2.5 text-[9px] font-bold tracking-wider uppercase text-neutral-500 font-sans">
-                  <div>System Type</div>
-                  <div>Example Variations</div>
-                </div>
-
-                {/* Table Rows */}
-                <div className="divide-y divide-white/[0.02] max-h-72 overflow-y-auto custom-scrollbar">
-                  {(['Open / Reveal', 'Close / Dismiss', 'Confirm / Success', 'Alert / Failure'] as const).map((subcat) => {
-                    const filteredPresets = soundPresets.filter(
-                      (p) => p.category === 'System/Fate' && p.subcategory === subcat
-                    );
-
-                    // Dynamic subcategory color indicator
-                    const subcatColors: Record<string, string> = {
-                      'Open / Reveal': 'bg-indigo-400 shadow-indigo-400/20',
-                      'Close / Dismiss': 'bg-neutral-400 shadow-neutral-400/20',
-                      'Confirm / Success': 'bg-emerald-400 shadow-emerald-400/20',
-                      'Alert / Failure': 'bg-rose-500 shadow-rose-500/20'
-                    };
-
-                    const dotColor = subcatColors[subcat] || 'bg-neutral-500';
-
-                    return (
-                      <div 
-                        key={subcat} 
-                        className="grid grid-cols-[115px_1fr] md:grid-cols-[170px_1fr] items-start px-4 py-3.5 hover:bg-white/[0.01] transition-all"
-                      >
-                        {/* Subcategory Label */}
-                        <div className="flex items-center gap-2 pr-2 py-1 select-none">
-                          <span className={`w-2 h-2 rounded-full ${dotColor} shadow-sm animate-pulse shrink-0`} />
-                          <span className="text-xs font-semibold text-neutral-200 font-sans tracking-wide">
-                            {subcat}
-                          </span>
-                        </div>
-
-                        {/* Presets Grid */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {filteredPresets.map((preset) => (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              onClick={() => {
-                                const durationSeconds = 1.5; // system sfx are short
-                                const loop = false;
-                                onChange({
-                                  ...params,
-                                  prompt: preset.prompt,
-                                  durationSeconds,
-                                  loop
-                                });
-                              }}
-                              className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/60 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95 shadow-sm"
-                            >
-                              {preset.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5 items-center bg-neutral-950/30 p-2.5 rounded-xl border border-white/[0.02] max-h-48 overflow-y-auto custom-scrollbar">
-                {soundPresets
-                  .filter((p) => p.category === activeCategory)
-                  .map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => {
-                        const durationSeconds = preset.category === 'Locations' ? 30 : 3;
-                        const loop = preset.category === 'Locations';
-                        onChange({
-                          ...params,
-                          prompt: preset.prompt,
-                          durationSeconds,
-                          loop
-                        });
-                      }}
-                      className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg bg-neutral-900/40 border border-white/[0.02] hover:border-white/[0.08] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer select-none active:scale-95"
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="flex justify-end pt-0.5">
