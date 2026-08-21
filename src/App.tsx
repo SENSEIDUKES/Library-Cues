@@ -2,9 +2,20 @@ import React, { useState } from 'react';
 import { GenerationParams, SoundAsset } from './types';
 import { GenerationControls } from './components/GenerationControls';
 import { AudioWaveform } from './components/AudioWaveform';
-import { FolderArchive, Library, Sparkles, AlertTriangle, CheckSquare, Square, Trash2, Download, CheckCircle, Terminal, X, Copy, Info, ArrowRight, Search, Plus, Pencil, Grid, List, ChevronLeft, ChevronRight, ChevronDown, Folder, Keyboard, Cpu, Database, RefreshCw, Play, Circle, Activity } from 'lucide-react';
+import { FolderArchive, Library, Sparkles, AlertTriangle, CheckSquare, Square, Trash2, Download, CheckCircle, Terminal, X, ArrowRight, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSoundLibrary } from './hooks/useSoundLibrary';
+import { LibraryView } from './components/LibraryView';
+import { ProfileView } from './components/ProfileView';
+import { CreateKitModal } from './components/CreateKitModal';
+import { KitTemplate } from './data/kitTemplates';
+import { RenameKitModal } from './components/RenameKitModal';
+import { BatchAssignModal } from './components/BatchAssignModal';
+import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
+import { DiagnosticsModal } from './components/DiagnosticsModal';
+import { TestCenterModal } from './components/TestCenterModal';
+import { ShortcutsOverlay } from './components/ShortcutsOverlay';
+import { DiagnosticToast } from './components/common';
 import { cn } from './lib/utils';
 
 export default function App() {
@@ -66,7 +77,7 @@ export default function App() {
     exportKit
   } = useSoundLibrary();
 
-  const [activeTab, setActiveTab] = useState<'synthesize' | 'library'>('synthesize');
+  const [activeTab, setActiveTab] = useState<'synthesize' | 'library' | 'profile'>('synthesize');
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<string>>(new Set());
   const [selectedSynthesisIds, setSelectedSynthesisIds] = useState<Set<string>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -85,6 +96,9 @@ export default function App() {
 
   // Testing Lab / Diagnostics Center States
   const [showTestCenter, setShowTestCenter] = useState(false);
+  const [isModifierHeld, setIsModifierHeld] = useState(false);
+  const [isShortcutsPinned, setIsShortcutsPinned] = useState(false);
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [diagLog, setDiagLog] = useState<string[]>([]);
   const [diagProgress, setDiagProgress] = useState<number>(0);
@@ -428,101 +442,235 @@ export default function App() {
     }
   };
 
-  // Global Keyboard Shortcuts
+  // Global Keyboard Shortcuts & Modifier Tracking
   React.useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isModifier = e.key === 'Meta' || e.key === 'Control' || e.metaKey || e.ctrlKey;
+      if (isModifier) {
+        setIsModifierHeld(true);
+      }
+
+      // Update active keys set for HUD visualizers
+      const keyLower = e.key.toLowerCase();
+      const nextKey = keyLower === ' ' ? 'space' : keyLower;
+      setActiveKeys(prev => {
+        const updated = new Set(prev);
+        if (e.metaKey || e.ctrlKey) updated.add('meta');
+        updated.add(nextKey);
+        return updated;
+      });
+
+      // Update test center trainer keys
+      setPressedKeys(prev => {
+        const next = new Set(prev);
+        if (e.ctrlKey || e.metaKey) next.add('meta');
+        if (keyLower === ' ') next.add('space');
+        else next.add(keyLower);
+        return next;
+      });
+
       const target = e.target as HTMLElement;
-      if (
+      const isInput = 
         target?.tagName === 'INPUT' || 
         target?.tagName === 'TEXTAREA' ||
         (typeof target?.hasAttribute === 'function' && target.hasAttribute('contenteditable')) ||
         document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA'
-      ) {
-        return;
-      }
+        document.activeElement?.tagName === 'TEXTAREA';
 
-      // Keyboard shortcuts are active on library view
-      if (activeTab !== 'library') return;
-
-      // Cmd+A or Ctrl+A (Select All)
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
-        e.preventDefault();
-        handleToggleSelectAll();
-        return;
-      }
-
-      // Backspace or Delete (Delete Selected)
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        e.preventDefault();
-        handleKeyboardDelete();
-        return;
-      }
-
-      // Arrow Keys to Cycle Focus
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleCycleFocus('next');
-        return;
-      }
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handleCycleFocus('prev');
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown);
-    };
-  }, [activeTab, paginatedLibrary, focusedSoundId, selectedLibraryIds, sortedLibrary]);
-
-  // Live Keyboard Shortcuts Trainer tracking
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!showTestCenter) return;
-      
-      const key = e.key.toLowerCase();
-      setPressedKeys(prev => {
-        const next = new Set(prev);
-        if (e.ctrlKey || e.metaKey) {
-          next.add('meta');
+      // Always allow Escape to close shortcuts overlay, modals, or clear selection
+      if (e.key === 'Escape') {
+        if (isShortcutsPinned || isModifierHeld) {
+          setIsShortcutsPinned(false);
+          setIsModifierHeld(false);
+          return;
         }
-        if (key === ' ') {
-          next.add('space');
-        } else {
-          next.add(key);
+        if (showTestCenter) {
+          setShowTestCenter(false);
+          return;
         }
-        return next;
-      });
+        if (showCreateKitModal) {
+          setShowCreateKitModal(false);
+          return;
+        }
+        if (showRenameKitModal) {
+          setShowRenameKitModal(false);
+          return;
+        }
+        if (showBatchAssignModal) {
+          setShowBatchAssignModal(false);
+          return;
+        }
+        if (showDeleteModal) {
+          setShowDeleteModal(false);
+          return;
+        }
+        if (selectedLibraryIds.size > 0) {
+          setSelectedLibraryIds(new Set());
+          return;
+        }
+        if (selectedSynthesisIds.size > 0) {
+          setSelectedSynthesisIds(new Set());
+          return;
+        }
+      }
+
+      // Ignore other action shortcuts if user is typing in an input
+      if (isInput) return;
+
+      // 1. Navigation Shortcuts
+      // Cmd/Ctrl + 1: Synthesizer
+      if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+        e.preventDefault();
+        setActiveTab('synthesize');
+        return;
+      }
+
+      // Cmd/Ctrl + 2: Library
+      if ((e.metaKey || e.ctrlKey) && e.key === '2') {
+        e.preventDefault();
+        setActiveTab('library');
+        return;
+      }
+
+      // Cmd/Ctrl + 3 or Cmd/Ctrl + P: Profile Tab
+      if ((e.metaKey || e.ctrlKey) && (e.key === '3' || keyLower === 'p')) {
+        e.preventDefault();
+        setActiveTab('profile');
+        return;
+      }
+
+      // Cmd/Ctrl + T: Test Center
+      if ((e.metaKey || e.ctrlKey) && (keyLower === 't')) {
+        e.preventDefault();
+        setActiveTab('profile');
+        return;
+      }
+
+      // Cmd/Ctrl + / or ?: Toggle Shortcuts pinned
+      if (((e.metaKey || e.ctrlKey) && e.key === '/') || e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsPinned(prev => !prev);
+        return;
+      }
+
+      // Cmd/Ctrl + N: Create Kit Modal
+      if ((e.metaKey || e.ctrlKey) && keyLower === 'n') {
+        e.preventDefault();
+        setShowCreateKitModal(true);
+        return;
+      }
+
+      // Cmd/Ctrl + E: Export Active Kit
+      if ((e.metaKey || e.ctrlKey) && keyLower === 'e') {
+        if (activeTab === 'library' && library.length > 0) {
+          e.preventDefault();
+          exportKit();
+          return;
+        }
+      }
+
+      // Cmd/Ctrl + Enter: Synthesize Variation
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'Enter')) {
+        if (activeTab === 'synthesize' && params.prompt.trim() && !isGenerating) {
+          e.preventDefault();
+          handleGenerate(generatingCount, false);
+          return;
+        }
+      }
+
+      // Cmd/Ctrl + A: Select All
+      if ((e.metaKey || e.ctrlKey) && keyLower === 'a') {
+        e.preventDefault();
+        if (activeTab === 'library') {
+          handleToggleSelectAll();
+        } else if (activeTab === 'synthesize' && variations.length > 0) {
+          handleToggleSynthesisSelectAll();
+        }
+        return;
+      }
+
+      // Library-specific keyboard actions
+      if (activeTab === 'library') {
+        // Backspace or Delete (Delete Selected)
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          handleKeyboardDelete();
+          return;
+        }
+
+        // Arrow Keys to Cycle Focus
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleCycleFocus('next');
+          return;
+        }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleCycleFocus('prev');
+          return;
+        }
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (!showTestCenter) return;
-      
-      const key = e.key.toLowerCase();
+      if (!e.metaKey && !e.ctrlKey) {
+        setIsModifierHeld(false);
+      }
+
+      const keyLower = e.key.toLowerCase();
+      const nextKey = keyLower === ' ' ? 'space' : keyLower;
+
+      setActiveKeys(prev => {
+        const updated = new Set(prev);
+        if (!e.metaKey && !e.ctrlKey) updated.delete('meta');
+        updated.delete(nextKey);
+        return updated;
+      });
+
       setPressedKeys(prev => {
         const next = new Set(prev);
-        if (!e.ctrlKey && !e.metaKey) {
-          next.delete('meta');
-        }
-        if (key === ' ') {
-          next.delete('space');
-        } else {
-          next.delete(key);
-        }
+        if (!e.ctrlKey && !e.metaKey) next.delete('meta');
+        if (keyLower === ' ') next.delete('space');
+        else next.delete(keyLower);
         return next;
       });
+    };
+
+    const handleWindowBlur = () => {
+      setIsModifierHeld(false);
+      setActiveKeys(new Set());
+      setPressedKeys(new Set());
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
+    window.addEventListener('blur', handleWindowBlur);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
+      window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [showTestCenter]);
+  }, [
+    activeTab, 
+    paginatedLibrary, 
+    focusedSoundId, 
+    selectedLibraryIds, 
+    selectedSynthesisIds, 
+    sortedLibrary, 
+    variations, 
+    isGenerating, 
+    params.prompt, 
+    generatingCount, 
+    isShortcutsPinned, 
+    isModifierHeld, 
+    showTestCenter, 
+    showCreateKitModal, 
+    showRenameKitModal, 
+    showBatchAssignModal, 
+    showDeleteModal,
+    library.length
+  ]);
 
   // --- TESTING LAB & DIAGNOSTICS CODE ---
   
@@ -672,12 +820,47 @@ export default function App() {
     }
   };
 
-  const handleCreateKitSubmit = async () => {
+  const handleCreateKitSubmit = async (autoAssignMatching?: boolean, selectedTemplate?: KitTemplate | null) => {
     if (!newKitName.trim()) return;
-    await handleCreateKit(newKitName.trim(), newKitDescription.trim());
+
+    let initialSoundIds: string[] = [];
+    if (autoAssignMatching && selectedTemplate) {
+      const matching = library.filter(asset => {
+        const matchesCategory = asset.category === selectedTemplate.category;
+        const matchesTag = selectedTemplate.tags.some(tag => 
+          asset.name?.toLowerCase().includes(tag) || 
+          asset.prompt?.toLowerCase().includes(tag)
+        );
+        return matchesCategory || matchesTag;
+      });
+      initialSoundIds = matching.map(a => a.id);
+    }
+
+    const createdKit = await handleCreateKit(newKitName.trim(), newKitDescription.trim(), initialSoundIds);
     setNewKitName('');
     setNewKitDescription('');
     setShowCreateKitModal(false);
+
+    if (createdKit) {
+      setSelectedKitId(createdKit.id);
+      if (initialSoundIds.length > 0) {
+        setDiagnosticToast({
+          show: true,
+          title: 'Sound Kit Created',
+          description: `Created "${createdKit.name}" and auto-assigned ${initialSoundIds.length} matching library sound(s).`,
+          success: true,
+          logs: []
+        });
+      } else {
+        setDiagnosticToast({
+          show: true,
+          title: 'Sound Kit Created',
+          description: `Created "${createdKit.name}" sound kit.`,
+          success: true,
+          logs: []
+        });
+      }
+    }
   };
 
   const handleRenameKitSubmit = async () => {
@@ -885,26 +1068,44 @@ export default function App() {
         
         {/* Sticky Glassmorphic Header */}
         <header className="px-5 py-4 border-b border-white/[0.04] bg-black/80 backdrop-blur-xl flex items-center justify-between z-35 shrink-0 sticky top-0">
-          <div className="flex items-center gap-2.5">
-            <img 
+          <div 
+            onClick={() => setActiveTab('synthesize')}
+            className="flex items-center gap-2.5 cursor-pointer select-none group"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveTab('synthesize');
+              }
+            }}
+            title="Return to Synthesizer"
+          >
+            <motion.img 
+              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+              transition={{ duration: 0.15 }}
               src="https://pub-e482c2dbbb984c3c87ecdd8ae3a92183.r2.dev/LIBRARY/images/CELESTIAL%20LIBRARY%20ICON.jpg" 
               alt="Library Cues Logo"
-              className="w-8 h-8 rounded-lg object-cover shadow-md shadow-white/5"
+              className="w-8 h-8 rounded-lg object-cover shadow-md shadow-white/5 transition-transform"
             />
             <div>
-              <h1 className="text-sm font-bold tracking-tight text-neutral-100 leading-tight">Library Cues</h1>
+              <h1 className="text-sm font-bold tracking-tight text-neutral-100 leading-tight group-hover:text-white transition-colors">Library Cues</h1>
               <p className="text-[10px] text-neutral-500 font-medium tracking-wide uppercase">Sound engine</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowTestCenter(true)}
-              className="flex items-center gap-1.5 text-[11px] font-semibold border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] text-neutral-300 hover:text-white px-3.5 py-1.5 rounded-full transition-all cursor-pointer select-none shadow-sm"
-              title="Open the Premium Diagnostics & Testing Center"
+              onClick={() => setActiveTab('profile')}
+              className={cn(
+                "flex items-center gap-1.5 text-[11px] font-semibold border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] text-neutral-300 hover:text-white px-3.5 py-1.5 rounded-full transition-all cursor-pointer select-none shadow-sm",
+                activeTab === 'profile' && "border-white/20 bg-white/10 text-white"
+              )}
+              title="Open User Profile & Advanced Systems Menu"
             >
-              <Terminal className="w-3.5 h-3.5" />
-              Testing Lab
+              <User className="w-3.5 h-3.5" />
+              <span>Profile</span>
             </button>
 
             <AnimatePresence mode="wait">
@@ -1084,7 +1285,7 @@ export default function App() {
                   </section>
                 )}
               </motion.div>
-            ) : (
+            ) : activeTab === 'library' ? (
               <motion.div
                 key="library-tab"
                 initial={{ opacity: 0, y: 10 }}
@@ -1093,502 +1294,92 @@ export default function App() {
                 transition={{ duration: 0.2 }}
                 className="p-5 flex flex-col gap-5"
               >
-                {library.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                    <div className="w-14 h-14 rounded-full bg-neutral-900/60 border border-white/[0.04] flex items-center justify-center text-neutral-500 mb-4 shadow-inner">
-                      <Library className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-neutral-300">Your library is empty</h3>
-                    <p className="text-xs text-neutral-500 mt-1 max-w-[200px] leading-relaxed">
-                      Generate and keep audio variations in the synthesis tab to save them here.
-                    </p>
-                    <button 
-                      onClick={() => setActiveTab('synthesize')}
-                      className="mt-5 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 border border-white/[0.04] text-neutral-300 text-xs font-semibold rounded-full transition-all cursor-pointer select-none"
-                    >
-                      Open Synthesizer
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                    
-                    {/* Left Column: Sound Kits Navigation Sidebar */}
-                    <div className="md:col-span-3 flex flex-col gap-4">
-                      <div className="p-4 rounded-2xl bg-neutral-900/30 border border-white/[0.04] backdrop-blur-xl flex flex-col gap-3">
-                        <div className="flex items-center justify-between pb-2 border-b border-white/[0.04]">
-                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <FolderArchive className="w-3.5 h-3.5 text-neutral-400" /> Sound Kits
-                          </span>
-                          <button
-                            onClick={() => setShowCreateKitModal(true)}
-                            className="w-5 h-5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white flex items-center justify-center transition-all cursor-pointer select-none"
-                            title="Create New Sound Kit"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {/* Kits list */}
-                        <div className="flex flex-col gap-1">
-                          {/* All Sounds Option */}
-                          <button
-                            onClick={() => setSelectedKitId('all')}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs font-medium transition-all text-left cursor-pointer",
-                              selectedKitId === 'all' 
-                                ? "bg-white text-black font-semibold shadow" 
-                                : "text-neutral-400 hover:text-white hover:bg-white/[0.02]"
-                            )}
-                          >
-                            <span className="flex items-center gap-2">
-                              <Library className="w-3.5 h-3.5" /> All Saved Sounds
-                            </span>
-                            <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded-full",
-                              selectedKitId === 'all' ? "bg-black/10 text-black" : "bg-white/[0.04] text-neutral-500"
-                            )}>
-                              {library.length}
-                            </span>
-                          </button>
-
-                          {/* Unassigned Sounds Option */}
-                          <button
-                            onClick={() => setSelectedKitId('unassigned')}
-                            className={cn(
-                              "flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs font-medium transition-all text-left cursor-pointer",
-                              selectedKitId === 'unassigned' 
-                                ? "bg-white text-black font-semibold shadow" 
-                                : "text-neutral-400 hover:text-white hover:bg-white/[0.02]"
-                            )}
-                          >
-                            <span className="flex items-center gap-2">
-                              <Folder className="w-3.5 h-3.5" /> Unassigned
-                            </span>
-                            <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded-full",
-                              selectedKitId === 'unassigned' ? "bg-black/10 text-black" : "bg-white/[0.04] text-neutral-500"
-                            )}>
-                              {library.filter(asset => !kits.some(k => k.soundIds.includes(asset.id))).length}
-                            </span>
-                          </button>
-
-                          <div className="h-[1px] bg-white/[0.04] my-1.5" />
-
-                          {/* User custom kits */}
-                          {kits.length === 0 ? (
-                            <div className="text-center py-4 px-2 text-[11px] text-neutral-500 leading-relaxed border border-dashed border-white/[0.04] rounded-xl bg-white/[0.01]">
-                              No kits created yet. Click "+" to create a kit and organize your library.
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1 max-h-60 overflow-y-auto scrollbar-none">
-                              {kits.map(kit => (
-                                <div 
-                                  key={kit.id}
-                                  className={cn(
-                                    "flex items-center justify-between w-full rounded-xl text-xs font-medium transition-all group/kit-item",
-                                    selectedKitId === kit.id 
-                                      ? "bg-white text-black font-semibold animate-none" 
-                                      : "text-neutral-400 hover:text-white hover:bg-white/[0.02]"
-                                  )}
-                                >
-                                  <button
-                                    onClick={() => setSelectedKitId(kit.id)}
-                                    className="flex-1 text-left px-3 py-2 flex items-center gap-2 truncate cursor-pointer"
-                                  >
-                                    <FolderArchive className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="truncate">{kit.name}</span>
-                                  </button>
-
-                                  <div className="flex items-center gap-1.5 pr-2 shrink-0">
-                                    <span className={cn(
-                                      "text-[10px] font-mono px-1.5 py-0.5 rounded-full",
-                                      selectedKitId === kit.id ? "bg-black/10 text-black" : "bg-white/[0.04] text-neutral-500"
-                                    )}>
-                                      {kit.soundIds.length}
-                                    </span>
-                                    
-                                    {/* Rename Action */}
-                                    <button
-                                      onClick={() => {
-                                        setKitToRenameId(kit.id);
-                                        setRenameKitName(kit.name);
-                                        setShowRenameKitModal(true);
-                                      }}
-                                      className={cn(
-                                        "w-4 h-4 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer select-none",
-                                        selectedKitId === kit.id ? "text-neutral-600 hover:text-black" : "text-neutral-600 hover:text-neutral-200 opacity-0 group-hover/kit-item:opacity-100"
-                                      )}
-                                      title="Rename Kit"
-                                    >
-                                      <Pencil className="w-2.5 h-2.5" />
-                                    </button>
-
-                                    {/* Delete Action */}
-                                    <button
-                                      onClick={() => handleDeleteKit(kit.id)}
-                                      className={cn(
-                                        "w-4 h-4 rounded-full flex items-center justify-center hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer select-none",
-                                        selectedKitId === kit.id ? "text-neutral-600 hover:text-rose-600" : "text-neutral-600 hover:text-rose-400 opacity-0 group-hover/kit-item:opacity-100"
-                                      )}
-                                      title="Delete Kit (keeps sounds)"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Column: Advanced Library Dashboard */}
-                    <div className="md:col-span-9 flex flex-col gap-4">
-                      
-                      {/* Frosted Control Center */}
-                      <div className="p-4 rounded-2xl bg-neutral-900/30 border border-white/[0.04] backdrop-blur-xl flex flex-col gap-4">
-                        
-                        {/* Search & Layout Density Row */}
-                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-                          <div className="relative flex-1">
-                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
-                              <Search className="w-4 h-4" />
-                            </span>
-                            <input
-                              type="text"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              placeholder="Search library by name, prompt or tags..."
-                              className="w-full pl-9 pr-8 py-2 text-xs bg-neutral-950/40 hover:bg-neutral-950/60 focus:bg-neutral-950 border border-white/[0.03] hover:border-white/[0.08] focus:border-white/[0.15] text-white rounded-xl placeholder-neutral-500 outline-none transition-all"
-                            />
-                            {searchQuery && (
-                              <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-neutral-500 hover:text-neutral-300 cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* View density and export controls */}
-                          <div className="flex items-center gap-3 shrink-0">
-                            {/* Export active kit */}
-                            <button
-                              onClick={handleBulkExport}
-                              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-black hover:bg-neutral-100 shadow transition-all cursor-pointer"
-                              title="Export current set"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              Export Set
-                            </button>
-
-                            {/* View Density Toggle */}
-                            <div className="flex items-center bg-neutral-950/40 border border-white/[0.03] p-1 rounded-xl">
-                              <button
-                                onClick={() => setViewDensity('comfortable')}
-                                className={cn(
-                                  "p-1.5 rounded-lg transition-colors cursor-pointer select-none",
-                                  viewDensity === 'comfortable' ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:text-neutral-300"
-                               )}
-                               title="Comfortable Cards"
-                              >
-                                <Grid className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setViewDensity('compact')}
-                                className={cn(
-                                  "p-1.5 rounded-lg transition-colors cursor-pointer select-none",
-                                  viewDensity === 'compact' ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:text-neutral-300"
-                                )}
-                                title="Compact High-Density List"
-                              >
-                                <List className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Interactive Filters Panel */}
-                        <div className="flex flex-col gap-3 pt-3 border-t border-white/[0.03]">
-                          
-                          {/* Categories filter */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider w-16">Category:</span>
-                            {['all', 'ambient', 'ui', 'action'].map(cat => (
-                              <button
-                                key={cat}
-                                onClick={() => setSelectedCategory(cat)}
-                                className={cn(
-                                  "text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all cursor-pointer select-none uppercase tracking-wider",
-                                  selectedCategory === cat 
-                                    ? "bg-neutral-200 text-black border-transparent font-semibold shadow" 
-                                    : "bg-white/[0.01] text-neutral-400 border-white/[0.03] hover:text-white hover:border-white/[0.08]"
-                                )}
-                              >
-                                {cat}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Duration filter */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider w-16">Duration:</span>
-                            {[
-                              { id: 'all', label: 'All' },
-                              { id: 'short', label: 'Short (<1.5s)' },
-                              { id: 'medium', label: 'Medium (1.5-4s)' },
-                              { id: 'long', label: 'Long (>4s)' }
-                            ].map(dur => (
-                              <button
-                                key={dur.id}
-                                onClick={() => setSelectedDuration(dur.id as any)}
-                                className={cn(
-                                  "text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all cursor-pointer select-none",
-                                  selectedDuration === dur.id 
-                                    ? "bg-neutral-200 text-black border-transparent font-semibold shadow" 
-                                    : "bg-white/[0.01] text-neutral-400 border-white/[0.03] hover:text-white hover:border-white/[0.08]"
-                                )}
-                              >
-                                {dur.label}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Loopable filter */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider w-16">Format:</span>
-                            {[
-                              { id: 'all', label: 'All Formats' },
-                              { id: 'loop', label: 'Loopable' },
-                              { id: 'oneshot', label: 'One-Shot' }
-                            ].map(fmt => (
-                              <button
-                                key={fmt.id}
-                                onClick={() => setSelectedLoopStatus(fmt.id as any)}
-                                className={cn(
-                                  "text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all cursor-pointer select-none",
-                                  selectedLoopStatus === fmt.id 
-                                    ? "bg-neutral-200 text-black border-transparent font-semibold shadow" 
-                                    : "bg-white/[0.01] text-neutral-400 border-white/[0.03] hover:text-white hover:border-white/[0.08]"
-                                )}
-                              >
-                                {fmt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Sort & Quick Select / Batch Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/[0.03]">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <button
-                              onClick={handleToggleSelectAll}
-                              className="flex items-center gap-2 text-[11px] font-bold text-neutral-400 hover:text-white transition-colors uppercase tracking-wider cursor-pointer"
-                            >
-                              {selectedLibraryIds.size === sortedLibrary.length && sortedLibrary.length > 0 ? (
-                                <CheckSquare className="w-4 h-4 text-white" />
-                              ) : (
-                                <Square className="w-4 h-4" />
-                              )}
-                              Select All
-                            </button>
-
-                            {/* Batch operations */}
-                            <AnimatePresence>
-                              {selectedLibraryIds.size > 0 && (
-                                <motion.div
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
-                                  className="flex items-center gap-2 border-l border-white/10 pl-3"
-                                >
-                                  <span className="text-[10px] text-neutral-500 font-mono tracking-wide mr-1">
-                                    {selectedLibraryIds.size} selected
-                                  </span>
-
-                                  {/* Batch Add to Kit */}
-                                  {kits.length > 0 && (
-                                    <button
-                                      onClick={() => setShowBatchAssignModal(true)}
-                                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors cursor-pointer border border-white/[0.03]"
-                                      title="Add Selected to Kit"
-                                    >
-                                      <FolderArchive className="w-3 h-3" /> Add to Kit
-                                    </button>
-                                  )}
-
-                                  {/* Batch Remove from Current Kit */}
-                                  {selectedKitId !== 'all' && selectedKitId !== 'unassigned' && (
-                                    <button
-                                      onClick={handleBatchRemoveSubmit}
-                                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-rose-500/10 hover:bg-rose-500/15 text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-500/10"
-                                      title="Remove Selected from Current Kit"
-                                    >
-                                      <X className="w-3 h-3" /> Remove from Kit
-                                    </button>
-                                  )}
-
-                                  {/* Batch Delete */}
-                                  <button
-                                    onClick={handleBulkDelete}
-                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                                    title="Delete Selected from Library"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-
-                          {/* Sort dropdown */}
-                          <div className="flex items-center gap-2 self-end sm:self-auto text-[11px]">
-                            <span className="text-neutral-500">Sort By:</span>
-                            <div className="relative">
-                              <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value as any)}
-                                className="bg-neutral-950/60 hover:bg-neutral-950 border border-white/[0.03] hover:border-white/[0.08] text-white rounded-lg px-2.5 py-1 pr-7 text-xs font-medium outline-none cursor-pointer appearance-none animate-none"
-                              >
-                                <option value="latest">Latest Saved</option>
-                                <option value="oldest">Oldest Saved</option>
-                                <option value="alphabetical">Alphabetical (A-Z)</option>
-                                <option value="duration-desc">Duration (Longest)</option>
-                                <option value="duration-asc">Duration (Shortest)</option>
-                              </select>
-                              <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-neutral-500">
-                                <ChevronDown className="w-3 h-3" />
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Paginated sound list or empty results */}
-                      <div className="flex flex-col gap-3 min-h-[300px]">
-                        {paginatedLibrary.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-16 text-center bg-neutral-900/15 border border-dashed border-white/[0.03] rounded-2xl">
-                            <Library className="w-8 h-8 text-neutral-600 mb-2.5" />
-                            <h4 className="text-xs font-semibold text-neutral-400">No matching sounds found</h4>
-                            <p className="text-[11px] text-neutral-600 mt-1 max-w-[240px] leading-relaxed">
-                              Try clearing some filters, changing kits, or updating your search query.
-                            </p>
-                          </div>
-                        ) : (
-                          paginatedLibrary.map(asset => (
-                            <AudioWaveform 
-                              key={asset.id} 
-                              id={`sound-card-${asset.id}`}
-                              asset={asset}
-                              onReject={() => handleRemoveFromLibrary(asset.id)}
-                              onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
-                              onTrimSilence={() => handleTrimSilence(asset, true)}
-                              onUndoTrim={() => handleUndoTrim(asset, true)}
-                              onNormalizeLoudness={() => handleNormalizeLoudness(asset, true)}
-                              onFadeAudio={() => handleFade(asset, true)}
-                              onUpdateAsset={handleUpdateAsset}
-                              isSelected={selectedLibraryIds.has(asset.id)}
-                              onToggleSelect={() => handleToggleSelect(asset.id)}
-                              onShowDiagnostics={(a) => setSelectedDiagnosticAsset(a)}
-                              // NEW PROPS
-                              viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
-                              kits={kits}
-                              onAssignToKit={handleAssignSoundToKit}
-                              onRemoveFromKit={handleRemoveSoundFromKit}
-                              isFocused={focusedSoundId === asset.id}
-                              onFocus={() => setFocusedSoundId(asset.id)}
-                            />
-                          ))
-                        )}
-                      </div>
-
-                      {/* Custom Apple-style Pagination Controls */}
-                      {totalSounds > pageSize && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2 p-4 bg-neutral-900/10 border border-white/[0.03] rounded-2xl">
-                          <span className="text-[11px] text-neutral-500 font-mono">
-                            Showing <span className="text-white font-medium">{startIndex + 1}</span> to <span className="text-white font-medium">{endIndex}</span> of <span className="text-white font-medium">{totalSounds}</span> sounds
-                          </span>
-
-                          <div className="flex items-center gap-2">
-                            {/* Page size dropdown */}
-                            <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 mr-2">
-                              <span>Per page:</span>
-                              <div className="relative">
-                                <select
-                                  value={pageSize}
-                                  onChange={(e) => {
-                                    setPageSize(parseInt(e.target.value) as any);
-                                    setCurrentPage(1);
-                                  }}
-                                  className="bg-neutral-950/40 hover:bg-neutral-950/60 border border-white/[0.03] text-white rounded-lg px-2 py-0.5 pr-5 font-mono text-[10px] cursor-pointer appearance-none animate-none"
-                                >
-                                  <option value={10}>10</option>
-                                  <option value={25}>25</option>
-                                  <option value={50}>50</option>
-                                  <option value={100}>100</option>
-                                </select>
-                                <span className="absolute inset-y-0 right-1.5 flex items-center pointer-events-none text-neutral-500">
-                                  <ChevronDown className="w-2.5 h-2.5" />
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Page Buttons */}
-                            <button
-                              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                              disabled={currentPage === 1}
-                              className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-
-                            {Array.from({ length: totalPages }).map((_, i) => {
-                              const pageNum = i + 1;
-                              // Beautiful limited pagination buttons
-                              if (
-                                pageNum === 1 || 
-                                pageNum === totalPages || 
-                                Math.abs(pageNum - currentPage) <= 1
-                              ) {
-                                return (
-                                  <button
-                                    key={pageNum}
-                                    onClick={() => setCurrentPage(pageNum)}
-                                    className={cn(
-                                      "w-7 h-7 rounded-lg text-xs font-medium font-mono transition-all cursor-pointer",
-                                      currentPage === pageNum 
-                                        ? "bg-white text-black font-bold shadow animate-none" 
-                                        : "border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/40 text-neutral-400 hover:text-white"
-                                    )}
-                                  >
-                                    {pageNum}
-                                  </button>
-                                );
-                              }
-                              if (
-                                pageNum === 2 && currentPage > 3 || 
-                                pageNum === totalPages - 1 && currentPage < totalPages - 2
-                              ) {
-                                return <span key={`ellipsis-${pageNum}`} className="text-neutral-600 text-xs px-0.5">...</span>;
-                              }
-                              return null;
-                            })}
-
-                            <button
-                              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                              disabled={currentPage === totalPages}
-                              className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <LibraryView
+                  library={library}
+                  kits={kits}
+                  selectedKitId={selectedKitId}
+                  setSelectedKitId={setSelectedKitId}
+                  setShowCreateKitModal={setShowCreateKitModal}
+                  setKitToRenameId={setKitToRenameId}
+                  setRenameKitName={setRenameKitName}
+                  setShowRenameKitModal={setShowRenameKitModal}
+                  handleDeleteKit={handleDeleteKit}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  handleBulkExport={handleBulkExport}
+                  viewDensity={viewDensity}
+                  setViewDensity={setViewDensity}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                  selectedDuration={selectedDuration}
+                  setSelectedDuration={setSelectedDuration}
+                  selectedLoopStatus={selectedLoopStatus}
+                  setSelectedLoopStatus={setSelectedLoopStatus}
+                  handleToggleSelectAll={handleToggleSelectAll}
+                  selectedLibraryIds={selectedLibraryIds}
+                  sortedLibrary={sortedLibrary}
+                  setShowBatchAssignModal={setShowBatchAssignModal}
+                  handleBatchRemoveSubmit={handleBatchRemoveSubmit}
+                  handleBulkDelete={handleBulkDelete}
+                  sortBy={sortBy}
+                  setSortBy={setSortBy}
+                  paginatedLibrary={paginatedLibrary}
+                  handleRemoveFromLibrary={handleRemoveFromLibrary}
+                  handleRenameLibraryAsset={handleRenameLibraryAsset}
+                  handleTrimSilence={handleTrimSilence}
+                  handleUndoTrim={handleUndoTrim}
+                  handleNormalizeLoudness={handleNormalizeLoudness}
+                  handleFade={handleFade}
+                  handleUpdateAsset={handleUpdateAsset}
+                  handleToggleSelect={handleToggleSelect}
+                  setSelectedDiagnosticAsset={setSelectedDiagnosticAsset}
+                  handleAssignSoundToKit={handleAssignSoundToKit}
+                  handleRemoveSoundFromKit={handleRemoveSoundFromKit}
+                  focusedSoundId={focusedSoundId}
+                  setFocusedSoundId={setFocusedSoundId}
+                  totalSounds={totalSounds}
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                  startIndex={startIndex}
+                  endIndex={endIndex}
+                  totalPages={totalPages}
+                  onSwitchToSynthesize={() => setActiveTab('synthesize')}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="profile-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ProfileView
+                  userEmail="amaurylindy@gmail.com"
+                  userName="Amaury Lindy"
+                  library={library}
+                  kits={kits}
+                  params={params}
+                  setParams={setParams}
+                  viewDensity={viewDensity}
+                  setViewDensity={setViewDensity}
+                  runFrequencySweep={runFrequencySweep}
+                  synthSweepPlaying={synthSweepPlaying}
+                  runStorageDiagnostic={runStorageDiagnostic}
+                  isDiagRunning={isDiagRunning}
+                  diagProgress={diagProgress}
+                  diagLog={diagLog}
+                  setDiagLog={setDiagLog}
+                  runTestSuiteSimulation={runTestSuiteSimulation}
+                  testRunnerState={testRunnerState}
+                  testRunnerResults={testRunnerResults}
+                  pressedKeys={pressedKeys}
+                  onOpenShortcutsOverlay={() => setIsShortcutsPinned(true)}
+                  isShortcutsPinned={isShortcutsPinned}
+                  setIsShortcutsPinned={setIsShortcutsPinned}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1643,734 +1434,124 @@ export default function App() {
               />
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`flex flex-col items-center gap-1.5 cursor-pointer select-none relative transition-colors py-1 ${
+              activeTab === 'profile' ? 'text-white' : 'text-neutral-500'
+            }`}
+          >
+            <User className="w-4.5 h-4.5" />
+            <span className="text-[10px] font-bold tracking-tight">Profile</span>
+            {activeTab === 'profile' && (
+              <motion.div 
+                layoutId="activeTabDot" 
+                className="absolute -bottom-2 w-1.5 h-1.5 bg-white rounded-full" 
+                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              />
+            )}
+          </button>
         </div>
 
       </div>
 
-      <AnimatePresence>
-        {showDeleteModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-neutral-900 border border-white/[0.04] p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4"
-            >
-              <div className="flex flex-col gap-2">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-rose-500" />
-                  Delete Selected Assets?
-                </h2>
-                <p className="text-sm text-neutral-400 leading-relaxed">
-                  Are you sure you want to delete {selectedLibraryIds.size} asset{selectedLibraryIds.size !== 1 ? 's' : ''}? This action cannot be undone.
-                </p>
-              </div>
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 py-2.5 px-4 bg-neutral-800 text-white text-sm font-semibold rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmBulkDelete}
-                  className="flex-1 py-2.5 px-4 bg-rose-600/90 text-white text-sm font-semibold rounded-xl hover:bg-rose-500 transition-colors cursor-pointer"
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        selectedCount={selectedLibraryIds.size}
+        onConfirm={confirmBulkDelete}
+      />
 
       {/* Premium Diagnostic Toasts */}
-      <AnimatePresence>
-        {diagnosticToast?.show && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="fixed bottom-24 right-5 z-45 max-w-sm w-full bg-neutral-900/95 border border-white/10 rounded-2xl backdrop-blur-xl shadow-2xl shadow-black/80 p-4 flex flex-col gap-3 overflow-hidden"
-          >
-            {/* Visual accent bar */}
-            <div className={`absolute top-0 left-0 right-0 h-0.5 ${diagnosticToast.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-            
-            <div className="flex gap-3">
-              <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${diagnosticToast.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                {diagnosticToast.success ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold text-white tracking-wide uppercase">{diagnosticToast.title}</h4>
-                <p className="text-[11px] text-neutral-400 leading-relaxed mt-1">{diagnosticToast.description}</p>
-                
-                {/* File size optimization metrics */}
-                {diagnosticToast.success && diagnosticToast.originalSize && diagnosticToast.processedSize && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono text-neutral-500">
-                    <span>{(diagnosticToast.originalSize / 1024).toFixed(1)} KB</span>
-                    <ArrowRight className="w-3 h-3 text-neutral-600" />
-                    <span className="text-white font-medium">{(diagnosticToast.processedSize / 1024).toFixed(1)} KB</span>
-                    {diagnosticToast.originalSize > diagnosticToast.processedSize && (
-                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded ml-1 text-[9px]">
-                        -{Math.round((1 - diagnosticToast.processedSize / diagnosticToast.originalSize) * 100)}% Size
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setDiagnosticToast(prev => prev ? { ...prev, show: false } : null)}
-                className="w-5 h-5 flex items-center justify-center text-neutral-500 hover:text-white transition-colors cursor-pointer select-none"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            
-            {/* Action buttons inside Toast */}
-            <div className="flex gap-2 justify-end border-t border-white/[0.04] pt-2.5 mt-0.5">
-              <button
-                onClick={() => setDiagnosticToast(prev => prev ? { ...prev, show: false } : null)}
-                className="text-[10px] font-bold text-neutral-500 hover:text-white px-2 py-1 transition-colors cursor-pointer"
-              >
-                Dismiss
-              </button>
-              {diagnosticToast.logs?.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedDiagnosticAsset(diagnosticToast.asset || null);
-                    setDiagnosticToast(prev => prev ? { ...prev, show: false } : null);
-                  }}
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full border border-white/5 transition-all cursor-pointer shadow-sm"
-                >
-                  <Terminal className="w-3 h-3" />
-                  View Telemetry
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {diagnosticToast && (
+        <DiagnosticToast
+          show={diagnosticToast.show}
+          title={diagnosticToast.title}
+          description={diagnosticToast.description}
+          success={diagnosticToast.success}
+          originalSize={diagnosticToast.originalSize}
+          processedSize={diagnosticToast.processedSize}
+          logs={diagnosticToast.logs}
+          onDismiss={() => setDiagnosticToast(prev => prev ? { ...prev, show: false } : null)}
+          onViewTelemetry={diagnosticToast.logs?.length > 0 ? () => {
+            setSelectedDiagnosticAsset(diagnosticToast.asset || null);
+            setDiagnosticToast(prev => prev ? { ...prev, show: false } : null);
+          } : undefined}
+        />
+      )}
 
-      {/* Sound Kit Creation & Rename Modals */}
-      <AnimatePresence>
-        {showCreateKitModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-neutral-900 border border-white/[0.04] p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4"
-            >
-              <div className="flex flex-col gap-1.5">
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <FolderArchive className="w-4.5 h-4.5 text-neutral-300" />
-                  Create Sound Kit
-                </h2>
-                <p className="text-[11px] text-neutral-500 leading-relaxed">
-                  Group your variations into custom sound kits for cohesive export and high-density organization.
-                </p>
-              </div>
+      <CreateKitModal
+        isOpen={showCreateKitModal}
+        onClose={() => {
+          setShowCreateKitModal(false);
+          setNewKitName('');
+          setNewKitDescription('');
+        }}
+        newKitName={newKitName}
+        setNewKitName={setNewKitName}
+        newKitDescription={newKitDescription}
+        setNewKitDescription={setNewKitDescription}
+        onSubmit={handleCreateKitSubmit}
+        librarySoundsCount={library.length}
+      />
 
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Kit Name</label>
-                  <input
-                    type="text"
-                    value={newKitName}
-                    onChange={(e) => setNewKitName(e.target.value)}
-                    placeholder="e.g. Vintage Synth, Retro UI, Laser SFX"
-                    className="w-full px-3 py-2 bg-neutral-950 border border-white/[0.04] rounded-xl text-xs text-white outline-none focus:border-white/[0.15] transition-colors"
-                    autoFocus
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Description (Optional)</label>
-                  <input
-                    type="text"
-                    value={newKitDescription}
-                    onChange={(e) => setNewKitDescription(e.target.value)}
-                    placeholder="Short summary of sounds..."
-                    className="w-full px-3 py-2 bg-neutral-950 border border-white/[0.04] rounded-xl text-xs text-white outline-none focus:border-white/[0.15] transition-colors"
-                  />
-                </div>
-              </div>
+      <RenameKitModal
+        isOpen={showRenameKitModal}
+        onClose={() => {
+          setShowRenameKitModal(false);
+          setKitToRenameId(null);
+          setRenameKitName('');
+        }}
+        renameKitName={renameKitName}
+        setRenameKitName={setRenameKitName}
+        onSubmit={handleRenameKitSubmit}
+      />
 
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => {
-                    setShowCreateKitModal(false);
-                    setNewKitName('');
-                    setNewKitDescription('');
-                  }}
-                  className="flex-1 py-2 px-4 bg-neutral-800 text-neutral-300 text-xs font-semibold rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateKitSubmit}
-                  disabled={!newKitName.trim()}
-                  className="flex-1 py-2 px-4 bg-white text-black text-xs font-bold rounded-xl hover:bg-neutral-100 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  Create Kit
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <BatchAssignModal
+        isOpen={showBatchAssignModal}
+        onClose={() => {
+          setShowBatchAssignModal(false);
+          setBatchAssignKitId('');
+        }}
+        selectedCount={selectedLibraryIds.size}
+        batchAssignKitId={batchAssignKitId}
+        setBatchAssignKitId={setBatchAssignKitId}
+        kits={kits}
+        onSubmit={handleBatchAssignSubmit}
+      />
 
-      <AnimatePresence>
-        {showRenameKitModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-neutral-900 border border-white/[0.04] p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4"
-            >
-              <div className="flex flex-col gap-1.5">
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Pencil className="w-4 h-4 text-neutral-300" />
-                  Rename Sound Kit
-                </h2>
-                <p className="text-[11px] text-neutral-500 leading-relaxed">
-                  Enter a new name for your sound library category group.
-                </p>
-              </div>
+      <TestCenterModal
+        isOpen={showTestCenter}
+        onClose={() => setShowTestCenter(false)}
+        pressedKeys={pressedKeys}
+        runFrequencySweep={runFrequencySweep}
+        synthSweepPlaying={synthSweepPlaying}
+        runStorageDiagnostic={runStorageDiagnostic}
+        isDiagRunning={isDiagRunning}
+        diagProgress={diagProgress}
+        diagLog={diagLog}
+        setDiagLog={setDiagLog}
+        runTestSuiteSimulation={runTestSuiteSimulation}
+        testRunnerState={testRunnerState}
+        testRunnerResults={testRunnerResults}
+      />
 
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">New Kit Name</label>
-                <input
-                  type="text"
-                  value={renameKitName}
-                  onChange={(e) => setRenameKitName(e.target.value)}
-                  placeholder="e.g. UI Clicks"
-                  className="w-full px-3 py-2 bg-neutral-950 border border-white/[0.04] rounded-xl text-xs text-white outline-none focus:border-white/[0.15] transition-colors"
-                  autoFocus
-                />
-              </div>
+      <DiagnosticsModal
+        asset={selectedDiagnosticAsset}
+        onClose={() => setSelectedDiagnosticAsset(null)}
+      />
 
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => {
-                    setShowRenameKitModal(false);
-                    setKitToRenameId(null);
-                    setRenameKitName('');
-                  }}
-                  className="flex-1 py-2 px-4 bg-neutral-800 text-neutral-300 text-xs font-semibold rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleRenameKitSubmit}
-                  disabled={!renameKitName.trim()}
-                  className="flex-1 py-2 px-4 bg-white text-black text-xs font-bold rounded-xl hover:bg-neutral-100 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  Rename Kit
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showBatchAssignModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-neutral-900 border border-white/[0.04] p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4"
-            >
-              <div className="flex flex-col gap-1.5">
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <FolderArchive className="w-4.5 h-4.5 text-neutral-300" />
-                  Assign to Sound Kit
-                </h2>
-                <p className="text-[11px] text-neutral-500 leading-relaxed">
-                  Choose which kit to add the {selectedLibraryIds.size} selected sound{selectedLibraryIds.size !== 1 ? 's' : ''} to.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Select Target Kit</label>
-                <div className="relative">
-                  <select
-                    value={batchAssignKitId}
-                    onChange={(e) => setBatchAssignKitId(e.target.value)}
-                    className="w-full bg-neutral-950 border border-white/[0.04] rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer appearance-none animate-none"
-                  >
-                    <option value="" disabled>-- Choose a sound kit --</option>
-                    {kits.map(kit => (
-                      <option key={kit.id} value={kit.id}>{kit.name} ({kit.soundIds.length} sounds)</option>
-                    ))}
-                  </select>
-                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-neutral-500">
-                    <ChevronDown className="w-4 h-4" />
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => {
-                    setShowBatchAssignModal(false);
-                    setBatchAssignKitId('');
-                  }}
-                  className="flex-1 py-2 px-4 bg-neutral-800 text-neutral-300 text-xs font-semibold rounded-xl hover:bg-neutral-700 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBatchAssignSubmit}
-                  disabled={!batchAssignKitId}
-                  className="flex-1 py-2 px-4 bg-white text-black text-xs font-bold rounded-xl hover:bg-neutral-100 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  Assign to Kit
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Premium Apple-Style Interactive Testing Lab & Diagnostics Center Modal */}
-      <AnimatePresence>
-        {showTestCenter && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.95, y: 15, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-              className="bg-neutral-900 border border-white/10 rounded-2xl max-w-3xl w-full h-[620px] shadow-[0_0_50px_rgba(255,255,255,0.02)] flex flex-col overflow-hidden text-neutral-200"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/[0.06] p-5 shrink-0 bg-neutral-950/40">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-white/5 flex items-center justify-center text-white shadow-inner">
-                    <Terminal className="w-4 h-4 text-neutral-300" />
-                  </div>
-                  <div>
-                    <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest font-mono">Systems Integration</h3>
-                    <h2 className="text-sm font-bold text-neutral-100 tracking-tight leading-tight">Testing Lab & Diagnostics Center</h2>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowTestCenter(false)}
-                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-neutral-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-thin">
-                
-                {/* Grid Layout: Top row split, bottom full console */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  
-                  {/* Left Column: Live Shortcuts Trainer HUD */}
-                  <div className="p-4 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col gap-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                        <Keyboard className="w-3.5 h-3.5 text-neutral-400" /> Shortcuts Trainer HUD
-                      </span>
-                      <span className="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold uppercase tracking-wider">
-                        Live Tracking
-                      </span>
-                    </div>
-
-                    {/* Pressed keys list */}
-                    <div className="bg-black/60 border border-white/[0.04] rounded-lg p-3 min-h-[48px] flex items-center flex-wrap gap-2 font-mono">
-                      {pressedKeys.size === 0 ? (
-                        <span className="text-[10px] text-neutral-600 italic">Press any keys to register...</span>
-                      ) : (
-                        Array.from(pressedKeys).map((key: any) => {
-                          const uppercaseKey = String(key).toUpperCase();
-                          return (
-                            <kbd
-                              key={key}
-                              className="px-2 py-0.5 bg-white/10 border border-white/10 rounded font-mono text-[10px] text-white font-bold animate-pulse shadow-sm"
-                            >
-                              {uppercaseKey === 'META' ? '⌘ CMD' : uppercaseKey === 'SPACE' ? 'SPACE' : uppercaseKey}
-                            </kbd>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Interactive verification list */}
-                    <div className="flex flex-col gap-2 border-t border-white/[0.03] pt-3">
-                      <div className="flex items-center justify-between text-xs py-0.5">
-                        <div className="flex items-center gap-2">
-                          {pressedKeys.has('meta') && pressedKeys.has('a') ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-neutral-700 shrink-0" />
-                          )}
-                          <span className={pressedKeys.has('meta') && pressedKeys.has('a') ? "text-neutral-200 line-through" : "text-neutral-400"}>
-                            Cmd + A <span className="text-[10px] text-neutral-600 font-mono">(Select All)</span>
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-neutral-500 font-mono">Trigger list select</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-0.5">
-                        <div className="flex items-center gap-2">
-                          {pressedKeys.has('backspace') || pressedKeys.has('delete') ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-neutral-700 shrink-0" />
-                          )}
-                          <span className={pressedKeys.has('backspace') || pressedKeys.has('delete') ? "text-neutral-200 line-through" : "text-neutral-400"}>
-                            Backspace <span className="text-[10px] text-neutral-600 font-mono">(Delete Selected)</span>
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-neutral-500 font-mono">Remove asset</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-0.5">
-                        <div className="flex items-center gap-2">
-                          {pressedKeys.has('space') ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-neutral-700 shrink-0" />
-                          )}
-                          <span className={pressedKeys.has('space') ? "text-neutral-200 line-through" : "text-neutral-400"}>
-                            Space <span className="text-[10px] text-neutral-600 font-mono">(Play/Pause Focused)</span>
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-neutral-500 font-mono">Toggle play</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-0.5">
-                        <div className="flex items-center gap-2">
-                          {pressedKeys.has('arrowdown') || pressedKeys.has('arrowup') || pressedKeys.has('arrowleft') || pressedKeys.has('arrowright') ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-neutral-700 shrink-0" />
-                          )}
-                          <span className={pressedKeys.has('arrowdown') || pressedKeys.has('arrowup') || pressedKeys.has('arrowleft') || pressedKeys.has('arrowright') ? "text-neutral-200 line-through" : "text-neutral-400"}>
-                            Arrow Keys <span className="text-[10px] text-neutral-600 font-mono">(Cycle Focus)</span>
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-neutral-500 font-mono">Navigate library</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Dynamic Web Audio DSP Sweep & DB Benchmarks */}
-                  <div className="flex flex-col gap-4">
-                    {/* Audio Sweep Panel */}
-                    <div className="p-4 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col gap-3">
-                      <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                        <Cpu className="w-3.5 h-3.5 text-neutral-400" /> Web Audio DSP Synthesizer
-                      </span>
-                      <p className="text-[11px] text-neutral-500 leading-relaxed">
-                        Generate a 3-second live frequency sweep (80Hz to 1.2kHz) through a sweeping lowpass resonant filter to test browser playback capability.
-                      </p>
-                      <button
-                        onClick={runFrequencySweep}
-                        disabled={synthSweepPlaying}
-                        className={cn(
-                          "w-full py-2 px-3 border border-white/10 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer select-none",
-                          synthSweepPlaying 
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                            : "bg-white text-black hover:bg-neutral-100"
-                        )}
-                      >
-                        {synthSweepPlaying ? (
-                          <>
-                            <Activity className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                            Audio Sweep Playing...
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3 h-3 text-black fill-current" />
-                            Trigger Audio Frequency Sweep
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Database benchmark section */}
-                    <div className="p-4 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col gap-3">
-                      <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                        <Database className="w-3.5 h-3.5 text-neutral-400" /> Storage Diagnostics Bench
-                      </span>
-                      <p className="text-[11px] text-neutral-500 leading-relaxed">
-                        Verify schema properties, connection speed, integrity of local IndexedDB data structures, and sound registry health.
-                      </p>
-                      
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={runStorageDiagnostic}
-                          disabled={isDiagRunning}
-                          className="flex-1 py-2 px-3 bg-neutral-800 border border-white/5 text-white rounded-lg text-xs font-semibold hover:bg-neutral-700 transition-colors cursor-pointer select-none disabled:opacity-50"
-                        >
-                          {isDiagRunning ? 'Running Storage Bench...' : 'Execute Storage Bench'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Progress bar for storage bench */}
-                {isDiagRunning && (
-                  <div className="p-4 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col gap-2 shrink-0 animate-fade-in">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-neutral-400">Database Test Progress</span>
-                      <span className="font-mono text-neutral-500">{diagProgress}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-neutral-950 rounded-full overflow-hidden">
-                      <div className="h-full bg-white transition-all duration-300" style={{ width: `${diagProgress}%` }} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Split Row for Logs (IDB logs vs Test Code logs) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 min-h-[160px]">
-                  
-                  {/* Local DB logs */}
-                  <div className="bg-black/40 border border-white/[0.03] rounded-xl p-3 flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between mb-2 shrink-0">
-                      <span className="text-[9px] font-bold text-neutral-500 tracking-wider uppercase font-mono">IndexedDB Diagnostic Log</span>
-                      <button 
-                        onClick={() => setDiagLog([])}
-                        className="text-[9px] text-neutral-600 hover:text-neutral-400 font-semibold font-sans"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed text-neutral-400 flex flex-col gap-1 pr-1 scrollbar-thin">
-                      {diagLog.length > 0 ? (
-                        diagLog.map((log, idx) => (
-                          <div key={idx} className={log.includes('❌') ? 'text-rose-400' : log.includes('✓') ? 'text-emerald-400' : 'text-neutral-400'}>
-                            {log}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-neutral-600 italic p-1 text-[10px]">No database diagnostics log run yet.</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Browser Vitest Suite Runner Simulation */}
-                  <div className="bg-black/40 border border-white/[0.03] rounded-xl p-3 flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between mb-2 shrink-0">
-                      <span className="text-[9px] font-bold text-neutral-500 tracking-wider uppercase font-mono">Automated Codebase Verification</span>
-                      <button
-                        onClick={runTestSuiteSimulation}
-                        disabled={testRunnerState === 'running'}
-                        className="flex items-center gap-1 text-[9px] text-neutral-400 hover:text-white bg-white/5 px-2 py-0.5 rounded cursor-pointer transition-all disabled:opacity-40 font-sans font-semibold"
-                      >
-                        <RefreshCw className={cn("w-2.5 h-2.5", testRunnerState === 'running' && "animate-spin")} />
-                        Run Suite Verification
-                      </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto font-mono text-[10px] leading-relaxed text-neutral-400 flex flex-col gap-1.5 pr-1 scrollbar-thin">
-                      {testRunnerResults.length > 0 ? (
-                        testRunnerResults.map((line, idx) => {
-                          let style = "text-neutral-400";
-                          if (line.includes('✓')) style = "text-emerald-400 font-semibold";
-                          else if (line.includes('🏆')) style = "text-emerald-400 font-bold text-xs pt-1.5 border-t border-white/[0.03]";
-                          else if (line.includes('$')) style = "text-sky-400";
-                          return (
-                            <div key={idx} className={`${style} whitespace-pre-wrap font-mono`}>
-                              {line}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="text-neutral-600 italic p-1 text-[10px]">Click "Run Suite Verification" to audit all unit & integration tests on local file-systems.</div>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between border-t border-white/[0.06] p-4 shrink-0 bg-neutral-950/40 text-[10px] text-neutral-500 font-mono">
-                <span>LOCAL SANDBOX ENGINE: ACTIVE</span>
-                <span>SYSTEM INTEGRATION STATUS: 100% SUCCESSFUL</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Fullscreen Telemetry Diagnostic Console Overlay */}
-      <AnimatePresence>
-        {selectedDiagnosticAsset && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.95, y: 15, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-              className="bg-neutral-950 border border-white/10 p-5 rounded-2xl max-w-2xl w-full h-[520px] shadow-2xl flex flex-col overflow-hidden"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3.5 mb-4 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-400">
-                    <Terminal className="w-4 h-4 text-neutral-300" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-neutral-400 tracking-wider uppercase">Active DSP Diagnostics</h3>
-                    <h2 className="text-sm font-bold text-white mt-0.5 truncate max-w-sm sm:max-w-md">
-                      {selectedDiagnosticAsset.name}
-                    </h2>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedDiagnosticAsset(null)}
-                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-neutral-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Stats Overview Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 shrink-0">
-                <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col">
-                  <span className="text-[9px] font-semibold text-neutral-500 uppercase tracking-wider">Engine Running</span>
-                  <span className="text-[11px] font-bold text-neutral-300 mt-1 truncate" title={selectedDiagnosticAsset.diagnostics?.engine}>
-                    {selectedDiagnosticAsset.diagnostics?.engine || 'DSP Engine'}
-                  </span>
-                </div>
-                
-                <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col">
-                  <span className="text-[9px] font-semibold text-neutral-500 uppercase tracking-wider">Status</span>
-                  <span className={`text-[11px] font-bold mt-1 inline-flex items-center gap-1 ${selectedDiagnosticAsset.diagnostics?.success !== false ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedDiagnosticAsset.diagnostics?.success !== false ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                    {selectedDiagnosticAsset.diagnostics?.success !== false ? 'PROCESSED' : 'FALLBACK'}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col">
-                  <span className="text-[9px] font-semibold text-neutral-500 uppercase tracking-wider">Original Size</span>
-                  <span className="text-[11px] font-mono font-bold text-neutral-300 mt-1">
-                    {selectedDiagnosticAsset.diagnostics?.originalSize 
-                      ? `${(selectedDiagnosticAsset.diagnostics.originalSize / 1024).toFixed(1)} KB` 
-                      : `${(selectedDiagnosticAsset.audioBase64 ? (selectedDiagnosticAsset.audioBase64.length * 0.75 / 1024).toFixed(1) : '0')} KB`}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-white/[0.01] border border-white/[0.04] rounded-xl flex flex-col">
-                  <span className="text-[9px] font-semibold text-neutral-500 uppercase tracking-wider">Processed Size</span>
-                  <span className="text-[11px] font-mono font-bold text-neutral-300 mt-1">
-                    {selectedDiagnosticAsset.diagnostics?.processedSize 
-                      ? `${(selectedDiagnosticAsset.diagnostics.processedSize / 1024).toFixed(1)} KB` 
-                      : `${(selectedDiagnosticAsset.audioBase64 ? (selectedDiagnosticAsset.audioBase64.length * 0.75 / 1024).toFixed(1) : '0')} KB`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Buffer delivery status banner */}
-              <div className={`p-3 rounded-xl border mb-4 text-[11px] leading-relaxed flex items-center gap-2 shrink-0 ${
-                selectedDiagnosticAsset.diagnostics?.success !== false 
-                  ? 'bg-emerald-950/20 border-emerald-900/30 text-emerald-300' 
-                  : 'bg-amber-950/20 border-amber-900/30 text-amber-300'
-              }`}>
-                <Info className="w-4 h-4 shrink-0" />
-                <span>
-                  {selectedDiagnosticAsset.diagnostics?.success !== false 
-                    ? 'Confirm: Processed audio buffer successfully returned and cached by local state engine.' 
-                    : 'System Alert: Subprocess compilation warning. Automatically fell back to original generated audio.'
-                  }
-                </span>
-              </div>
-
-              {/* Scrollable logs area */}
-              <div className="bg-black/40 border border-white/[0.03] rounded-xl p-3 flex-1 flex flex-col overflow-hidden relative">
-                <div className="flex items-center justify-between mb-2 shrink-0">
-                  <span className="text-[10px] font-bold text-neutral-500 tracking-wider uppercase font-mono">Console Telemetry Log</span>
-                  <button
-                    onClick={() => {
-                      const logsTxt = selectedDiagnosticAsset.diagnostics?.logs?.join('\n') || '';
-                      navigator.clipboard.writeText(logsTxt);
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white rounded text-[9px] font-bold transition-all cursor-pointer"
-                  >
-                    <Copy className="w-3 h-3" />
-                    Copy Console Output
-                  </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto font-mono text-[10px] text-neutral-400 leading-relaxed select-text pr-1 pb-2 flex flex-col gap-1.5 scrollbar-thin">
-                  {selectedDiagnosticAsset.diagnostics?.logs && selectedDiagnosticAsset.diagnostics.logs.length > 0 ? (
-                    selectedDiagnosticAsset.diagnostics.logs.map((log, index) => {
-                      // Custom premium parsing colors for keywords in terminal log lines
-                      let colorClass = 'text-neutral-400';
-                      if (log.includes('Error:')) colorClass = 'text-rose-400 font-medium';
-                      else if (log.includes('DSP:')) colorClass = 'text-sky-300 font-medium';
-                      else if (log.includes('FFmpeg:')) colorClass = 'text-violet-300';
-                      else if (log.includes('Cache:')) colorClass = 'text-amber-300';
-                      else if (log.includes('API:')) colorClass = 'text-fuchsia-300';
-                      else if (log.includes('Complete:')) colorClass = 'text-emerald-400 font-bold';
-                      
-                      return (
-                        <div key={index} className={`${colorClass} whitespace-pre-wrap font-mono break-all`}>
-                          {log}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-neutral-600 italic font-sans text-xs p-2">No telemetry diagnostic output logged for this asset.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-3 mt-4 shrink-0">
-                <button
-                  onClick={() => setSelectedDiagnosticAsset(null)}
-                  className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 border border-white/5 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer text-center"
-                >
-                  Dismiss Console
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ShortcutsOverlay
+        isOpen={isModifierHeld || isShortcutsPinned}
+        onClose={() => {
+          setIsShortcutsPinned(false);
+          setIsModifierHeld(false);
+        }}
+        isModifierHeld={isModifierHeld}
+        activeKeys={activeKeys}
+        isPinned={isShortcutsPinned}
+        onTogglePin={() => setIsShortcutsPinned(prev => !prev)}
+      />
     </div>
   );
 }

@@ -46,22 +46,25 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
       {/* Description input */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <label className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
+          <label htmlFor="sound-prompt-input" className="text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
             Sound Description
           </label>
           <span className="text-[10px] text-neutral-600 font-medium">Type simple words, then Enhance</span>
         </div>
         <div className="relative group">
           <textarea 
+            id="sound-prompt-input"
             value={params.prompt}
             onChange={(e) => updateParam('prompt', e.target.value)}
             placeholder="e.g. A guttural, echoing roar of a massive beast in a cave..."
+            aria-label="Sound generation prompt description"
             className="w-full bg-neutral-900/40 border border-white/[0.04] rounded-2xl p-4 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/[0.12] focus:ring-1 focus:ring-white/[0.12] resize-none h-28 transition-all duration-200 backdrop-blur-md leading-relaxed pr-12"
           />
           {params.prompt.length > 0 && (
             <button 
               onClick={() => updateParam('prompt', '')}
-              className="absolute right-3 top-3 text-[10px] text-neutral-500 hover:text-neutral-300 font-mono transition-colors"
+              aria-label="Clear sound description prompt"
+              className="absolute right-3 top-3 text-[10px] text-neutral-500 hover:text-neutral-300 font-mono transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40 rounded px-1"
             >
               Clear
             </button>
@@ -263,18 +266,20 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         {/* Duration Slider */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
-            <span>Duration</span>
+            <label htmlFor="duration-slider">Duration</label>
             <span className="text-neutral-300 font-mono">{params.durationSeconds.toFixed(1)}s</span>
           </div>
           <div className="relative flex items-center h-6">
             <input 
+              id="duration-slider"
               type="range" 
               min="0.1" 
               max="30" 
               step="0.1"
+              aria-label="Sound duration in seconds"
               value={params.durationSeconds}
               onChange={(e) => updateParam('durationSeconds', parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none"
+              className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
               style={{
                 background: `linear-gradient(to right, #ffffff ${((params.durationSeconds - 0.1) / 29.9) * 100}%, #262626 ${((params.durationSeconds - 0.1) / 29.9) * 100}%)`
               }}
@@ -289,18 +294,20 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         {/* Prompt Influence Slider */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between text-[11px] font-semibold tracking-wider uppercase text-neutral-500">
-            <span>Prompt Influence</span>
+            <label htmlFor="prompt-influence-slider">Prompt Influence</label>
             <span className="text-neutral-300 font-mono">{(params.promptInfluence * 100).toFixed(0)}%</span>
           </div>
           <div className="relative flex items-center h-6">
             <input 
+              id="prompt-influence-slider"
               type="range" 
               min="0" 
               max="1" 
               step="0.01"
+              aria-label="Prompt influence percentage"
               value={params.promptInfluence}
               onChange={(e) => updateParam('promptInfluence', parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none"
+              className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
               style={{
                 background: `linear-gradient(to right, #ffffff ${params.promptInfluence * 100}%, #262626 ${params.promptInfluence * 100}%)`
               }}
@@ -326,8 +333,11 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          role="switch"
+          aria-checked={params.loop}
+          aria-label="Seamless Loop"
           onClick={() => updateParam('loop', !params.loop)}
-          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
+          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
             params.loop ? 'bg-white' : 'bg-neutral-700'
           }`}
         >
@@ -354,8 +364,11 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          role="switch"
+          aria-checked={params.trimSilence}
+          aria-label="Trim Silence"
           onClick={() => updateParam('trimSilence', !params.trimSilence)}
-          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
+          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
             params.trimSilence ? 'bg-white' : 'bg-neutral-700'
           }`}
         >
@@ -382,8 +395,11 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
         </div>
         <button
           type="button"
+          role="switch"
+          aria-checked={params.normalizeLoudness}
+          aria-label="Normalize Loudness"
           onClick={() => updateParam('normalizeLoudness', !params.normalizeLoudness)}
-          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none ${
+          className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none ${
             params.normalizeLoudness ? 'bg-white' : 'bg-neutral-700'
           }`}
         >
@@ -413,9 +429,10 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
             min="0"
             max="5"
             step="0.1"
+            aria-label="Fade in duration in seconds"
             value={params.fadeIn}
             onChange={(e) => updateParam('fadeIn', parseFloat(e.target.value))}
-            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer"
+            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer focus-visible:ring-1 focus-visible:ring-white/40"
           />
         </div>
 
@@ -433,9 +450,10 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
             min="0"
             max="5"
             step="0.1"
+            aria-label="Fade out duration in seconds"
             value={params.fadeOut}
             onChange={(e) => updateParam('fadeOut', parseFloat(e.target.value))}
-            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer"
+            className="w-full accent-white bg-neutral-800 h-1.5 rounded-full appearance-none cursor-pointer focus-visible:ring-1 focus-visible:ring-white/40"
           />
         </div>
       </div>

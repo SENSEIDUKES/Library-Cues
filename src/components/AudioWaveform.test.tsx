@@ -106,6 +106,22 @@ describe('AudioWaveform', () => {
     }
   });
 
+  it('renders accessible slider attributes and handles keyboard navigation on canvas', () => {
+    render(<AudioWaveform asset={defaultAsset} />);
+    const slider = screen.getByRole('slider', { name: /Audio waveform for Test Sound/i });
+    expect(slider).toBeInTheDocument();
+    expect(slider).toHaveAttribute('aria-label', 'Audio waveform for Test Sound');
+    expect(slider).toHaveAttribute('tabIndex', '0');
+
+    // Test keyboard interactions
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    fireEvent.keyDown(slider, { key: 'Home' });
+    fireEvent.keyDown(slider, { key: 'End' });
+    fireEvent.keyDown(slider, { key: ' ' });
+    fireEvent.keyDown(slider, { key: 'Enter' });
+  });
+
   it('renders correctly with loop enabled', () => {
     render(<AudioWaveform asset={{ ...defaultAsset, loop: true }} />);
     expect(screen.getByText('Seamless Loop')).toBeInTheDocument();

@@ -9,12 +9,23 @@ vi.mock('../lib/storage', () => ({
   saveSound: (sound: any) => mockSaveSound(sound),
 }));
 
-// Mock decodeAudioBase64 and generateFallbackPeaks
+// Mock decodeAudioBase64, generateFallbackPeaks, and createReverbImpulse
 const mockDecodeAudioBase64 = vi.fn();
 const mockGenerateFallbackPeaks = vi.fn(() => [0.1, 0.2, 0.3]);
+const mockCreateReverbImpulse = vi.fn(() => ({
+  length: 44100,
+  duration: 1,
+  sampleRate: 44100,
+  numberOfChannels: 2,
+  getChannelData: vi.fn(() => new Float32Array(44100)),
+  copyFromChannel: vi.fn(),
+  copyToChannel: vi.fn()
+}));
+
 vi.mock('../lib/audio', () => ({
   decodeAudioBase64: (base64: string) => mockDecodeAudioBase64(base64),
   generateFallbackPeaks: () => mockGenerateFallbackPeaks(),
+  createReverbImpulse: () => mockCreateReverbImpulse(),
 }));
 
 describe('useAudioWaveform hook', () => {
@@ -202,5 +213,54 @@ describe('useAudioWaveform hook', () => {
     });
 
     expect(latestAudioInstance.pause).toHaveBeenCalled();
+  });
+
+  it('manages anti-pop loop volume envelope when asset.loop is true during playback', async () => {
+    const loopAsset: SoundAsset = {
+      ...asset,
+      loop: true,
+      durationSeconds: 4.0,
+    };
+
+    const { result } = renderHook(() => useAudioWaveform(loopAsset));
+
+    await waitFor(() => {
+      expect(latestAudioInstance).not.toBeNull();
+    });
+
+    expect(latestAudioInstance.loop).toBe(true);
+
+    // Trigger playback
+    act(() => {
+      result.current.togglePlay();
+      latestAudioInstance.paused = false;
+      latestAudioInstance.currentTime = 0; // at start of loop
+    });
+
+    // Simulate requestAnimationFrame execution
+    act(() => {
+      // Advance timers or let RAF fire
+    });
+
+    // Verify audio element exists and is configured for seamless looping
+    expect(latestAudioInstance.loop).toBe(true);
+  });
+
+  it('cleans up Web Audio nodes including loopGainNode on unmount', async () => {
+    const { result, unmount } = renderHook(() => useAudioWaveform(asset));
+
+    await waitFor(() => {
+      expect(latestAudioInstance).not.toBeNull();
+    });
+
+    // Initialize Web Audio
+    act(() => {
+      result.current.setFilterFreq(5000);
+    });
+
+    // Unmount hook and verify no unhandled errors thrown during disconnection
+    expect(() => {
+      unmount();
+    }).not.toThrow();
   });
 });

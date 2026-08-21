@@ -220,11 +220,33 @@ export function AudioWaveform({
     if (!canvas || displayDuration === 0) return;
 
     const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0) return;
     const clickX = e.clientX - rect.left;
-    const clickRatio = clickX / rect.width;
+    const clickRatio = Math.max(0, Math.min(1, clickX / rect.width));
     const targetTime = clickRatio * displayDuration;
 
     seek(targetTime);
+  };
+
+  const handleCanvasKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (displayDuration === 0) return;
+    const step = e.shiftKey ? 2 : 0.5;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      seek(Math.min(displayDuration, currentTime + step));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      seek(Math.max(0, currentTime - step));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      seek(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      seek(displayDuration);
+    } else if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      togglePlay();
+    }
   };
 
   const hasActiveEffects = playbackRate !== 1 || filterFreq !== 20000 || delayFeedback !== 0 || reverbAmount !== 0;
@@ -354,8 +376,9 @@ export function AudioWaveform({
           {onToggleSelect && (
             <button 
               onClick={onToggleSelect} 
+              aria-label={isSelected ? `Deselect ${asset.name}` : `Select ${asset.name}`}
               className={cn(
-                "text-neutral-600 hover:text-neutral-400 transition-colors cursor-pointer select-none shrink-0", 
+                "text-neutral-600 hover:text-neutral-400 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none shrink-0", 
                 isSelected && "text-white"
               )}
             >
@@ -366,7 +389,8 @@ export function AudioWaveform({
           {/* Small Circular Play Button */}
           <button 
             onClick={togglePlay}
-            className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-100 active:scale-95 transition-all shadow shrink-0 cursor-pointer select-none"
+            aria-label={isPlaying ? `Pause ${asset.name}` : `Play ${asset.name}`}
+            className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95 transition-all shadow shrink-0 cursor-pointer select-none"
           >
             {isPlaying ? (
               <Pause className="w-3.5 h-3.5 fill-current text-neutral-950" />
@@ -379,7 +403,8 @@ export function AudioWaveform({
           <div className="flex flex-col min-w-0 flex-1 gap-0.5">
             <div className="group/rename relative flex items-center w-full">
               <input 
-                className="bg-transparent border-none outline-none font-semibold text-xs text-neutral-200 focus:text-white placeholder-neutral-600 w-full tracking-tight focus:ring-0 focus:border-none p-0"
+                aria-label={`Rename sound ${asset.name}`}
+                className="bg-transparent border-none outline-none font-semibold text-xs text-neutral-200 focus:text-white placeholder-neutral-600 w-full tracking-tight focus:ring-0 focus:border-none p-0 focus-visible:underline"
                 value={localName}
                 onChange={handleNameChange}
                 onBlur={handleNameBlur}
@@ -402,7 +427,15 @@ export function AudioWaveform({
             <canvas 
               ref={canvasRef} 
               onClick={handleCanvasClick}
-              className="w-full h-full cursor-pointer rounded"
+              onKeyDown={handleCanvasKeyDown}
+              role="slider"
+              tabIndex={0}
+              aria-label={`Audio waveform for ${asset.name}`}
+              aria-valuemin={0}
+              aria-valuemax={displayDuration > 0 ? Number(displayDuration.toFixed(2)) : 1}
+              aria-valuenow={Number(currentTime.toFixed(2))}
+              aria-valuetext={formatTime(currentTime)}
+              className="w-full h-full cursor-pointer rounded focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none"
             />
           </div>
 
@@ -657,8 +690,9 @@ export function AudioWaveform({
           {onToggleSelect && (
             <button 
               onClick={onToggleSelect} 
+              aria-label={isSelected ? `Deselect ${asset.name}` : `Select ${asset.name}`}
               className={cn(
-                "text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer select-none", 
+                "text-neutral-500 hover:text-neutral-300 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none", 
                 isSelected && "text-white"
               )}
             >
@@ -668,8 +702,9 @@ export function AudioWaveform({
           {onKeep && (
             <button 
               onClick={onKeep} 
+              aria-label={isKept ? `Mark ${asset.name} as unkept` : `Keep ${asset.name} in library`}
               className={cn(
-                "text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer select-none", 
+                "text-neutral-500 hover:text-neutral-300 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none", 
                 isKept && "text-emerald-400 hover:text-emerald-300"
               )}
             >
@@ -678,6 +713,7 @@ export function AudioWaveform({
           )}
           <div className="group/rename relative flex items-center flex-1 w-full border-b border-transparent hover:border-white/20 focus-within:border-white/40 transition-colors">
             <input 
+              aria-label={`Rename sound ${asset.name}`}
               className="bg-transparent border-none outline-none font-semibold text-sm text-neutral-200 focus:text-white placeholder-neutral-600 w-full tracking-tight focus:ring-0 focus:border-none p-0 pr-6"
               value={localName}
               onChange={handleNameChange}
@@ -693,7 +729,8 @@ export function AudioWaveform({
           {onReject && (
             <button 
               onClick={onReject} 
-              className="p-1 text-neutral-400 hover:text-red-400 transition-colors cursor-pointer" 
+              aria-label={`Delete ${asset.name}`}
+              className="p-1 text-neutral-400 hover:text-red-400 focus-visible:ring-1 focus-visible:ring-rose-400 focus-visible:outline-none rounded transition-colors cursor-pointer" 
               title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -738,7 +775,8 @@ export function AudioWaveform({
           {asset.diagnostics && onShowDiagnostics && (
             <button
               onClick={() => onShowDiagnostics(asset)}
-              className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-neutral-400 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2.5 py-0.5 rounded-full transition-all cursor-pointer select-none ml-auto"
+              aria-label="Inspect DSP Pipeline Telemetry Logs"
+              className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-neutral-400 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2.5 py-0.5 rounded-full transition-all cursor-pointer select-none ml-auto focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none"
               title="Inspect DSP Pipeline Telemetry Logs"
             >
               <FileText className="w-2.5 h-2.5 text-neutral-400" />
@@ -751,7 +789,8 @@ export function AudioWaveform({
       <div className="flex items-center gap-3.5">
         <button 
           onClick={togglePlay}
-          className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-100 active:scale-95 transition-all shadow-md shadow-black/10 shrink-0 cursor-pointer select-none"
+          aria-label={isPlaying ? `Pause ${asset.name}` : `Play ${asset.name}`}
+          className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95 transition-all shadow-md shadow-black/10 shrink-0 cursor-pointer select-none"
         >
           {isPlaying ? (
             <Pause className="w-4 h-4 fill-current text-neutral-950" />
@@ -763,13 +802,22 @@ export function AudioWaveform({
           <canvas 
             ref={canvasRef} 
             onClick={handleCanvasClick}
-            className="w-full h-full cursor-pointer rounded-lg bg-neutral-950/20 border border-white/[0.02]"
+            onKeyDown={handleCanvasKeyDown}
+            role="slider"
+            tabIndex={0}
+            aria-label={`Audio waveform for ${asset.name}`}
+            aria-valuemin={0}
+            aria-valuemax={displayDuration > 0 ? Number(displayDuration.toFixed(2)) : 1}
+            aria-valuenow={Number(currentTime.toFixed(2))}
+            aria-valuetext={formatTime(currentTime)}
+            className="w-full h-full cursor-pointer rounded-lg bg-neutral-950/20 border border-white/[0.02] focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none"
           />
         </div>
         <button 
           onClick={handleDownload} 
           disabled={isBaking}
-          className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-neutral-300 flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed" 
+          aria-label={`Download audio file for ${asset.name}`}
+          className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-neutral-300 flex items-center justify-center focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed" 
           title={hasActiveEffects ? "Download WAV (Bakes current effects on-the-fly)" : "Download"}
         >
           {isBaking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
@@ -824,6 +872,7 @@ export function AudioWaveform({
                 min="0" 
                 max="1" 
                 step="0.01" 
+                aria-label={`Volume for ${asset.name}`}
                 value={volume !== undefined ? volume : 1}
                 onChange={(e) => setVolume && setVolume(parseFloat(e.target.value))}
                 className="w-12 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-neutral-300 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-neutral-300 [&::-webkit-slider-thumb]:rounded-full"
@@ -837,6 +886,7 @@ export function AudioWaveform({
                 min="0.5" 
                 max="2" 
                 step="0.05" 
+                aria-label={`Pitch and playback speed for ${asset.name}`}
                 value={playbackRate}
                 onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
                 onMouseUp={handleEffectChangeEnd}
@@ -857,7 +907,8 @@ export function AudioWaveform({
                   }
                 }}
                 disabled={isTrimming}
-                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label={`Trim silence for ${asset.name}`}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"
                 title="Trim Silence"
               >
                 {isTrimming ? <Loader2 className="w-3 h-3 text-neutral-400 animate-spin" /> : <Scissors className="w-3 h-3 text-neutral-400" />}
@@ -876,7 +927,8 @@ export function AudioWaveform({
                   }
                 }}
                 disabled={isTrimming}
-                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label={`Undo audio processing for ${asset.name}`}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-emerald-400 focus-visible:outline-none rounded"
                 title="Undo Action"
               >
                 {isTrimming ? <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" /> : <Undo2 className="w-3 h-3 text-emerald-400" />}
@@ -895,7 +947,8 @@ export function AudioWaveform({
                   }
                 }}
                 disabled={isTrimming}
-                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label={`Normalize loudness for ${asset.name}`}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"
                 title="Normalize Loudness"
               >
                 <Activity className="w-3 h-3 text-neutral-400" />
@@ -914,7 +967,8 @@ export function AudioWaveform({
                   }
                 }}
                 disabled={isTrimming}
-                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label={`Apply fade in and fade out for ${asset.name}`}
+                className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"
                 title="Apply Fade In/Out (from Synthesis Settings)"
               >
                 <svg className="w-3 h-3 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
@@ -926,7 +980,8 @@ export function AudioWaveform({
               <button
                 onClick={handleBakeEffects}
                 disabled={isBaking}
-                className="ml-2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 px-2.5 py-1 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label={`Print real-time DSP effects into ${asset.name}`}
+                className="ml-2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 px-2.5 py-1 rounded-full transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white focus-visible:outline-none"
                 title="Print effects, filters, and speed changes permanently into the audio file"
               >
                 {isBaking ? (
@@ -944,8 +999,10 @@ export function AudioWaveform({
             
             <button
               onClick={() => setIsMetadataOpen(!isMetadataOpen)}
+              aria-expanded={isMetadataOpen}
+              aria-label={`Toggle details and studio DSP effects for ${asset.name}`}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all duration-200 cursor-pointer text-[10px] font-sans font-medium border select-none",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all duration-200 cursor-pointer text-[10px] font-sans font-medium border select-none focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none",
                 isMetadataOpen 
                   ? "bg-white text-black font-semibold border-white shadow-sm" 
                   : "bg-white/[0.02] text-neutral-400 hover:bg-white/[0.06] hover:text-white border-white/[0.04]"
@@ -1006,8 +1063,10 @@ export function AudioWaveform({
                         <button
                           key={cat}
                           onClick={() => handleCategorySelect(cat)}
+                          aria-pressed={isActive}
+                          aria-label={`Category ${cat}`}
                           className={cn(
-                            "text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all duration-200 cursor-pointer select-none uppercase tracking-wider",
+                            "text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all duration-200 cursor-pointer select-none uppercase tracking-wider focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none",
                             isActive
                               ? cat === 'ambient' ? "bg-blue-500/20 text-blue-300 border-blue-400/40"
                                 : cat === 'ui' ? "bg-amber-500/20 text-amber-300 border-amber-400/40"
@@ -1149,6 +1208,7 @@ export function AudioWaveform({
                       min="0.5" 
                       max="2" 
                       step="0.05"
+                      aria-label="DSP Pitch Shift"
                       value={playbackRate}
                       onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
                       onMouseUp={handleEffectChangeEnd}
@@ -1172,6 +1232,7 @@ export function AudioWaveform({
                       min="200" 
                       max="20000" 
                       step="100"
+                      aria-label="DSP Low-Pass Filter Cutoff"
                       value={filterFreq}
                       onChange={(e) => setFilterFreq(parseInt(e.target.value))}
                       onMouseUp={handleEffectChangeEnd}
@@ -1195,6 +1256,7 @@ export function AudioWaveform({
                       min="0" 
                       max="0.8" 
                       step="0.05"
+                      aria-label="DSP Space Echo Delay Feedback"
                       value={delayFeedback}
                       onChange={(e) => setDelayFeedback(parseFloat(e.target.value))}
                       onMouseUp={handleEffectChangeEnd}
@@ -1218,6 +1280,7 @@ export function AudioWaveform({
                       min="0" 
                       max="1.5" 
                       step="0.1"
+                      aria-label="DSP Hall Reverb Amount"
                       value={reverbAmount}
                       onChange={(e) => setReverbAmount(parseFloat(e.target.value))}
                       onMouseUp={handleEffectChangeEnd}

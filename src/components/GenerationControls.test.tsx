@@ -124,11 +124,8 @@ describe('GenerationControls', () => {
       />
     );
 
-    const buttons = screen.getAllByRole('button');
-    const loopToggle = buttons.find(b => b.className.includes('w-11'));
-    if (loopToggle) {
-      fireEvent.click(loopToggle);
-    }
+    const loopToggle = screen.getByRole('switch', { name: /Seamless Loop/i });
+    fireEvent.click(loopToggle);
     expect(handleChange).toHaveBeenCalledWith({ ...defaultParams, loop: true });
   });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { decodeAudioBase64, generateFallbackPeaks, createReverbImpulse } from '../lib/audio';
+import { decodeAudioBase64, generateFallbackPeaks, createReverbImpulse, computeLoopGain } from '../lib/audio';
 import { SoundAsset } from '../types';
 import { saveSound } from '../lib/storage';
 
@@ -39,6 +39,7 @@ export function useAudioWaveform(asset: SoundAsset) {
   const feedbackNodeRef = useRef<GainNode | null>(null);
   const reverbNodeRef = useRef<ConvolverNode | null>(null);
   const reverbGainNodeRef = useRef<GainNode | null>(null);
+  const loopGainNodeRef = useRef<GainNode | null>(null);
 
   const displayDuration = engineDuration > 0 ? engineDuration : offlineDuration;
 
@@ -77,22 +78,28 @@ export function useAudioWaveform(asset: SoundAsset) {
       reverbGain.gain.value = reverbAmount;
       reverbGainNodeRef.current = reverbGain;
 
+      const loopGain = ctx.createGain();
+      loopGain.gain.value = 1.0;
+      loopGainNodeRef.current = loopGain;
+
       // Connections:
-      // Source -> Filter -> Destination (Dry)
+      // Source -> Filter -> LoopGain -> Destination (Dry)
       // Filter -> Delay -> Feedback -> Filter (Feedback delay loop)
-      // Filter -> Reverb -> ReverbGain -> Destination (Reverb tail)
-      // Feedback -> Destination (Delay tail)
+      // Filter -> Reverb -> ReverbGain -> LoopGain (Reverb tail)
+      // Feedback -> LoopGain (Delay tail)
       source.connect(filter);
-      filter.connect(ctx.destination);
+      filter.connect(loopGain);
 
       filter.connect(delay);
       delay.connect(feedback);
       feedback.connect(filter);
-      feedback.connect(ctx.destination);
+      feedback.connect(loopGain);
 
       filter.connect(reverb);
       reverb.connect(reverbGain);
-      reverbGain.connect(ctx.destination);
+      reverbGain.connect(loopGain);
+
+      loopGain.connect(ctx.destination);
     } catch (e) {
       console.warn("Web Audio API setup failed or blocked", e);
     }
@@ -179,21 +186,94 @@ export function useAudioWaveform(asset: SoundAsset) {
         URL.revokeObjectURL(url);
 
         // Web Audio Cleanup
+        if (sourceNodeRef.current) {
+          try { sourceNodeRef.current.disconnect(); } catch (_) {}
+          sourceNodeRef.current = null;
+        }
+        if (filterNodeRef.current) {
+          try { filterNodeRef.current.disconnect(); } catch (_) {}
+          filterNodeRef.current = null;
+        }
+        if (delayNodeRef.current) {
+          try { delayNodeRef.current.disconnect(); } catch (_) {}
+          delayNodeRef.current = null;
+        }
+        if (feedbackNodeRef.current) {
+          try { feedbackNodeRef.current.disconnect(); } catch (_) {}
+          feedbackNodeRef.current = null;
+        }
+        if (reverbNodeRef.current) {
+          try { reverbNodeRef.current.disconnect(); } catch (_) {}
+          reverbNodeRef.current = null;
+        }
+        if (reverbGainNodeRef.current) {
+          try { reverbGainNodeRef.current.disconnect(); } catch (_) {}
+          reverbGainNodeRef.current = null;
+        }
+        if (loopGainNodeRef.current) {
+          try { loopGainNodeRef.current.disconnect(); } catch (_) {}
+          loopGainNodeRef.current = null;
+        }
         if (audioContextRef.current) {
           audioContextRef.current.close().catch(() => {});
           audioContextRef.current = null;
         }
-        sourceNodeRef.current = null;
-        filterNodeRef.current = null;
-        delayNodeRef.current = null;
-        feedbackNodeRef.current = null;
-        reverbNodeRef.current = null;
-        reverbGainNodeRef.current = null;
       };
     } catch (e) {
       console.error('Error creating audio URL', e);
     }
   }, [asset.audioBase64, asset.mimeType, asset.loop]);
+
+  // Anti-pop smooth fade-in and fade-out envelope for looped audio
+  useEffect(() => {
+    if (!isPlaying || !asset.loop) {
+      if (audioRef.current) {
+        audioRef.current.volume = volume;
+      }
+      if (loopGainNodeRef.current && audioContextRef.current) {
+        try {
+          loopGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
+        } catch (_) {}
+      }
+      return;
+    }
+
+    let animationFrameId: number;
+
+    const updateLoopGain = () => {
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        const dur = audio.duration || displayDuration;
+        const gainMultiplier = computeLoopGain(audio.currentTime, dur, true);
+        const targetVol = Math.max(0, Math.min(1, volume * gainMultiplier));
+
+        // Update HTMLAudioElement volume smoothly
+        audio.volume = targetVol;
+
+        // Update Web Audio GainNode if active
+        if (loopGainNodeRef.current && audioContextRef.current) {
+          try {
+            loopGainNodeRef.current.gain.setValueAtTime(gainMultiplier, audioContextRef.current.currentTime);
+          } catch (_) {}
+        }
+      }
+      animationFrameId = requestAnimationFrame(updateLoopGain);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLoopGain);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      if (audioRef.current) {
+        audioRef.current.volume = volume;
+      }
+      if (loopGainNodeRef.current && audioContextRef.current) {
+        try {
+          loopGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current.currentTime);
+        } catch (_) {}
+      }
+    };
+  }, [isPlaying, asset.loop, displayDuration, volume]);
 
   const pause = useCallback(() => {
     if (audioRef.current) {
@@ -237,11 +317,13 @@ export function useAudioWaveform(asset: SoundAsset) {
   }, []);
 
   const setVolume = useCallback((newVolume: number) => {
+    setVolumeState(newVolume);
     if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-      setVolumeState(newVolume);
+      if (!asset.loop || !isPlaying) {
+        audioRef.current.volume = newVolume;
+      }
     }
-  }, []);
+  }, [asset.loop, isPlaying]);
 
   const setPlaybackRate = useCallback((newRate: number) => {
     if (audioRef.current) {

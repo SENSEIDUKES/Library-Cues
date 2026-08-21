@@ -23,8 +23,13 @@ When diving into atmospheric storytelling, custom-generated sound cues (like spe
 - **Side-by-Side Variations**: Every generation action synthesizes three concurrent, distinct audio variations to compare, audition, and pick from.
 - **Precision Parameters**: Granular control over parameters like prompt influence, precise duration (seconds), and seamless loop generation.
 - **Waveform Analytics & Player**: Powered by `wavesurfer.js` to render elegant, dynamic interactive waveforms with real-time tracking, speed playbacks, and audio controls.
-- **User-Authored Saved Kits**: Persist your curated cues safely across sessions via `localStorage`. Rename individual sound files on-the-fly to construct structured soundboards.
+- **Pre-Populated Sound Kit Templates**: Instant kit suggestions (e.g., Sci-Fi Lasers, UI Clicks, Fantasy Spells, Beast & Monster SFX, Retro Arcade, Cyberpunk Interface) with pre-filled names, descriptions, categories, and optional auto-assignment of matching library assets. Includes a quick "Reset Templates" action to switch back to custom entries.
+- **Live Keyboard Shortcuts HUD**: Instant interactive shortcut helper overlay that appears on demand when holding the `Command` or `Control` key, or toggling with `⌘` / `?` / `Cmd + /`. Highlights active keys in real-time and guides users through global navigation (`⌘+1`, `⌘+2`, `⌘+T`), selection management (`⌘+A`, `Del`, arrows), and synthesis actions (`⌘+Enter`, `⌘+N`, `⌘+E`).
+- **User-Authored Saved Kits & Modular Library**: Modular architecture featuring `LibraryView`, `CreateKitModal`, `RenameKitModal`, `BatchAssignModal`, `ConfirmDeleteModal`, `DiagnosticsModal`, and `TestCenterModal` for modular, performant UI rendering.
+- **Testing Lab & Diagnostics Center**: Built-in HUD shortcut trainer, Web Audio DSP synthesizer frequency sweep, IndexedDB storage benchmark, and automated codebase suite simulator.
+- **Pagination & High-Density Views**: Custom Apple-style pagination with customizable page size (10 to 100 items per page) for high-volume sound library navigation.
 - **Full ZIP Export**: Bundle and download your entire saved kit library instantly with a single click.
+- **Comprehensive Testing**: Tested with Vitest and `@testing-library/react` for unit and UI validation.
 
 ---
 

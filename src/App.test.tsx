@@ -410,4 +410,57 @@ describe('App', () => {
       expect(screen.getByText('Synthwave Kit')).toBeInTheDocument();
     });
   });
+
+  it('displays Shortcuts overlay when modifier key is held or question mark is pressed', async () => {
+    render(<App />);
+
+    // Initially overlay is not open
+    expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
+
+    // Trigger Meta keydown (holding modifier)
+    fireEvent.keyDown(window, { key: 'Meta', metaKey: true });
+    expect(screen.getByText('Keyboard Shortcuts')).toBeInTheDocument();
+    expect(screen.getByText('Switch to Synthesizer Tab')).toBeInTheDocument();
+
+    // Release modifier
+    fireEvent.keyUp(window, { key: 'Meta', metaKey: false });
+    await waitFor(() => {
+      expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
+    });
+
+    // Press ?
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.getByText('Keyboard Shortcuts')).toBeInTheDocument();
+
+    // Close using close button
+    const closeBtn = screen.getByTitle('Close (Esc)');
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
+    });
+  });
+
+  it('can navigate to the User Profile tab and access the Advanced Menu', async () => {
+    render(<App />);
+
+    // Click Profile in bottom navigation or header
+    const profileTabBtns = screen.getAllByRole('button', { name: /Profile/i });
+    fireEvent.click(profileTabBtns[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Amaury Lindy')).toBeInTheDocument();
+      expect(screen.getByText('Advanced Systems & Diagnostics Menu')).toBeInTheDocument();
+      expect(screen.getByText('Trigger Audio Frequency Sweep')).toBeInTheDocument();
+    });
+
+    // Click logo to return to synthesis page
+    const logoButton = screen.getByRole('button', { name: /Library Cues/i });
+    fireEvent.click(logoButton);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/A guttural, echoing roar/i)).toBeInTheDocument();
+    });
+  });
 });
+

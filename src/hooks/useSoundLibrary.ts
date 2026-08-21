@@ -92,13 +92,13 @@ export function useSoundLibrary() {
   };
 
   // Kit operations
-  const handleCreateKit = async (name: string, description?: string) => {
+  const handleCreateKit = async (name: string, description?: string, initialSoundIds?: string[]) => {
     const newKit: SoundKit = {
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
       name,
       createdAt: Date.now(),
       description,
-      soundIds: []
+      soundIds: initialSoundIds || []
     };
     setKits(prev => [newKit, ...prev]);
     await saveKit(newKit);

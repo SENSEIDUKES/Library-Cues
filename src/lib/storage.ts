@@ -82,11 +82,10 @@ export const updateSoundName = async (id: string, newName: string): Promise<void
   try {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const sound = await store.get(id);
+    const sound = await tx.store.get(id);
     if (sound) {
       sound.name = newName;
-      await store.put(sound);
+      await tx.store.put(sound);
     }
     await tx.done;
   } catch (error) {

@@ -96,6 +96,68 @@ export const createReverbImpulse = (ctx: AudioContext, duration: number, decay: 
   return impulse;
 };
 
+/**
+ * Computes an anti-pop gain multiplier for seamless loop playback.
+ * Applies a smooth equal-power sinusoidal curve at the loop start (fade-in)
+ * and loop end (fade-out) to prevent speaker clicks/pops caused by amplitude discontinuities.
+ */
+export const computeLoopGain = (
+  currentTime: number,
+  duration: number,
+  isLoop: boolean,
+  fadeSeconds: number = 0.04
+): number => {
+  if (!isLoop || duration <= 0) return 1.0;
+  
+  // Adaptive fade window: typically 40ms, bounded by 10% of total duration for ultra-short clips
+  const fadeDuration = Math.min(fadeSeconds, duration * 0.1);
+  if (fadeDuration <= 0) return 1.0;
+
+  if (currentTime < fadeDuration) {
+    // Smooth equal-power fade in at start of loop (0.0 -> 1.0)
+    const progress = Math.max(0, currentTime) / fadeDuration;
+    return Math.sin(progress * (Math.PI / 2));
+  } else if (currentTime > duration - fadeDuration) {
+    // Smooth equal-power fade out at end of loop (1.0 -> 0.0)
+    const remaining = Math.max(0, duration - currentTime);
+    const progress = remaining / fadeDuration;
+    return Math.sin(progress * (Math.PI / 2));
+  }
+  
+  return 1.0;
+};
+
+/**
+ * Applies a micro-fade envelope directly to an AudioBuffer's start and end samples
+ * to prevent zero-crossing discontinuities when looped.
+ */
+export const applyAntiPopLoopFade = (
+  audioBuffer: AudioBuffer,
+  fadeSeconds: number = 0.04
+): AudioBuffer => {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const fadeSamples = Math.min(
+    Math.floor(fadeSeconds * sampleRate),
+    Math.floor(audioBuffer.length * 0.1)
+  );
+
+  if (fadeSamples <= 0) return audioBuffer;
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const data = audioBuffer.getChannelData(channel);
+    const length = data.length;
+    for (let i = 0; i < fadeSamples; i++) {
+      const fadeInGain = Math.sin((i / fadeSamples) * (Math.PI / 2));
+      data[i] *= fadeInGain;
+
+      const fadeOutGain = Math.sin((i / fadeSamples) * (Math.PI / 2));
+      data[length - 1 - i] *= fadeOutGain;
+    }
+  }
+  return audioBuffer;
+};
+
 export const getAudioBufferFromBase64 = async (audioBase64: string): Promise<AudioBuffer> => {
   const binaryString = window.atob(audioBase64);
   const len = binaryString.length;
