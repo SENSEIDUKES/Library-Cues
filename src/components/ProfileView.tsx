@@ -46,7 +46,7 @@ export interface ProfileViewProps {
   setIsShortcutsPinned: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({
+const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   userEmail = 'amaurylindy@gmail.com',
   userName = 'Amaury Lindy',
   library,
@@ -758,3 +758,5 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     </div>
   );
 };
+
+export const ProfileView = React.memo(ProfileViewComponent);

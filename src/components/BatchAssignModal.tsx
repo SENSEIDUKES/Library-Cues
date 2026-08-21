@@ -13,7 +13,7 @@ export interface BatchAssignModalProps {
   onSubmit: () => void;
 }
 
-export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
+export const BatchAssignModal: React.FC<BatchAssignModalProps> = React.memo(({
   isOpen,
   onClose,
   selectedCount,
@@ -74,5 +74,5 @@ export const BatchAssignModal: React.FC<BatchAssignModalProps> = ({
       </div>
     </Modal>
   );
-};
+});
 

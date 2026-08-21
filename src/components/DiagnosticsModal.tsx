@@ -8,7 +8,7 @@ export interface DiagnosticsModalProps {
   onClose: () => void;
 }
 
-export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
+export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = React.memo(({
   asset,
   onClose,
 }) => {
@@ -146,5 +146,5 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
       </div>
     </Modal>
   );
-};
+});
 

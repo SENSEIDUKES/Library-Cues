@@ -18,7 +18,7 @@ export interface CreateKitModalProps {
   librarySoundsCount?: number;
 }
 
-export const CreateKitModal: React.FC<CreateKitModalProps> = ({
+export const CreateKitModal: React.FC<CreateKitModalProps> = React.memo(({
   isOpen,
   onClose,
   newKitName,
@@ -245,5 +245,5 @@ export const CreateKitModal: React.FC<CreateKitModalProps> = ({
       </div>
     </Modal>
   );
-};
+});
 

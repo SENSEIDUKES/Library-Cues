@@ -1,6 +1,6 @@
 import React from 'react';
 import { SoundAsset, SoundKit } from '../types';
-import { AudioWaveform } from './AudioWaveform';
+import { VirtualizedSoundList } from './VirtualizedSoundList';
 import { 
   FolderArchive, Library, Plus, Pencil, X, Folder, Search, 
   Download, Grid, List, CheckSquare, Square, Trash2, 
@@ -63,7 +63,7 @@ export interface LibraryViewProps {
   onSwitchToSynthesize: () => void;
 }
 
-export const LibraryView: React.FC<LibraryViewProps> = ({
+const LibraryViewComponent: React.FC<LibraryViewProps> = ({
   library,
   kits,
   selectedKitId,
@@ -501,34 +501,30 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </p>
             </div>
           ) : (
-            paginatedLibrary.map(asset => (
-              <AudioWaveform 
-                key={asset.id} 
-                id={`sound-card-${asset.id}`}
-                asset={asset}
-                onReject={() => handleRemoveFromLibrary(asset.id)}
-                onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
-                onTrimSilence={() => handleTrimSilence(asset, true)}
-                onUndoTrim={() => handleUndoTrim(asset, true)}
-                onNormalizeLoudness={() => handleNormalizeLoudness(asset, true)}
-                onFadeAudio={() => handleFade(asset, true)}
-                onUpdateAsset={handleUpdateAsset}
-                isSelected={selectedLibraryIds.has(asset.id)}
-                onToggleSelect={() => handleToggleSelect(asset.id)}
-                onShowDiagnostics={(a) => setSelectedDiagnosticAsset(a)}
-                viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
-                kits={kits}
-                onAssignToKit={handleAssignSoundToKit}
-                onRemoveFromKit={handleRemoveSoundFromKit}
-                isFocused={focusedSoundId === asset.id}
-                onFocus={() => setFocusedSoundId(asset.id)}
-              />
-            ))
+            <VirtualizedSoundList
+              items={paginatedLibrary}
+              viewDensity={viewDensity}
+              kits={kits}
+              selectedLibraryIds={selectedLibraryIds}
+              focusedSoundId={focusedSoundId}
+              setFocusedSoundId={setFocusedSoundId}
+              handleRemoveFromLibrary={handleRemoveFromLibrary}
+              handleRenameLibraryAsset={handleRenameLibraryAsset}
+              handleTrimSilence={(asset) => handleTrimSilence(asset, true)}
+              handleUndoTrim={(asset) => handleUndoTrim(asset, true)}
+              handleNormalizeLoudness={(asset) => handleNormalizeLoudness(asset, true)}
+              handleFade={(asset) => handleFade(asset, true)}
+              handleUpdateAsset={handleUpdateAsset}
+              handleToggleSelect={handleToggleSelect}
+              setSelectedDiagnosticAsset={setSelectedDiagnosticAsset}
+              handleAssignSoundToKit={handleAssignSoundToKit}
+              handleRemoveSoundFromKit={handleRemoveSoundFromKit}
+            />
           )}
         </div>
 
         {/* Custom Apple-style Pagination Controls */}
-        {totalSounds > pageSize && (
+        {totalSounds > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2 p-4 bg-neutral-900/10 border border-white/[0.03] rounded-2xl">
             <span className="text-[11px] text-neutral-500 font-mono">
               Showing <span className="text-white font-medium">{startIndex + 1}</span> to <span className="text-white font-medium">{endIndex}</span> of <span className="text-white font-medium">{totalSounds}</span> sounds
@@ -537,7 +533,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <div className="flex items-center gap-2">
               {/* Page size dropdown */}
               <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 mr-2">
-                <span>Per page:</span>
+                <span>View:</span>
                 <div className="relative">
                   <select
                     value={pageSize}
@@ -547,10 +543,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     }}
                     className="bg-neutral-950/40 hover:bg-neutral-950/60 border border-white/[0.03] text-white rounded-lg px-2 py-0.5 pr-5 font-mono text-[10px] cursor-pointer appearance-none animate-none"
                   >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                    <option value={0}>All (Virtual Stream)</option>
                   </select>
                   <span className="absolute inset-y-0 right-1.5 flex items-center pointer-events-none text-neutral-500">
                     <ChevronDown className="w-2.5 h-2.5" />
@@ -558,53 +555,57 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </div>
               </div>
 
-              {/* Page Buttons */}
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+              {/* Page Buttons (only when paginated) */}
+              {pageSize > 0 && totalPages > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
 
-              {Array.from({ length: totalPages }).map((_, i) => {
-                const pageNum = i + 1;
-                if (
-                  pageNum === 1 || 
-                  pageNum === totalPages || 
-                  Math.abs(pageNum - currentPage) <= 1
-                ) {
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={cn(
-                        "w-7 h-7 rounded-lg text-xs font-medium font-mono transition-all cursor-pointer",
-                        currentPage === pageNum 
-                          ? "bg-white text-black font-bold shadow animate-none" 
-                          : "border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/40 text-neutral-400 hover:text-white"
-                      )}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                }
-                if (
-                  (pageNum === 2 && currentPage > 3) || 
-                  (pageNum === totalPages - 1 && currentPage < totalPages - 2)
-                ) {
-                  return <span key={`ellipsis-${pageNum}`} className="text-neutral-600 text-xs px-0.5">...</span>;
-                }
-                return null;
-              })}
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                    const pageNum = i + 1;
+                    if (
+                      pageNum === 1 || 
+                      pageNum === totalPages || 
+                      Math.abs(pageNum - currentPage) <= 1
+                    ) {
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={cn(
+                            "w-7 h-7 rounded-lg text-xs font-medium font-mono transition-all cursor-pointer",
+                            currentPage === pageNum 
+                              ? "bg-white text-black font-bold shadow animate-none" 
+                              : "border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/40 text-neutral-400 hover:text-white"
+                          )}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                    if (
+                      (pageNum === 2 && currentPage > 3) || 
+                      (pageNum === totalPages - 1 && currentPage < totalPages - 2)
+                    ) {
+                      return <span key={`ellipsis-${pageNum}`} className="text-neutral-600 text-xs px-0.5">...</span>;
+                    }
+                    return null;
+                  })}
 
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="w-7 h-7 rounded-lg border border-white/[0.03] bg-neutral-950/20 hover:bg-neutral-950/60 text-neutral-400 hover:text-white flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -612,3 +613,5 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     </div>
   );
 };
+
+export const LibraryView = React.memo(LibraryViewComponent);

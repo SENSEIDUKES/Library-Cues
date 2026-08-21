@@ -19,7 +19,7 @@ export interface TestCenterModalProps {
   testRunnerResults: string[];
 }
 
-export const TestCenterModal: React.FC<TestCenterModalProps> = ({
+export const TestCenterModal: React.FC<TestCenterModalProps> = React.memo(({
   isOpen,
   onClose,
   pressedKeys,
@@ -275,5 +275,5 @@ export const TestCenterModal: React.FC<TestCenterModalProps> = ({
       </div>
     </Modal>
   );
-};
+});
 

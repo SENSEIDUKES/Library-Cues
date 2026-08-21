@@ -31,7 +31,7 @@ interface AudioWaveformProps {
   id?: string;
 }
 
-export function AudioWaveform({ 
+function AudioWaveformComponent({ 
   asset, 
   onKeep, 
   onReject, 
@@ -1301,4 +1301,6 @@ export function AudioWaveform({
     </div>
   );
 }
+
+export const AudioWaveform = React.memo(AudioWaveformComponent);
 

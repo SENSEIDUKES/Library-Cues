@@ -37,7 +37,7 @@ export interface ShortcutsOverlayProps {
   isMac?: boolean;
 }
 
-export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({
+export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
   isOpen,
   onClose,
   isModifierHeld,
@@ -357,4 +357,4 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});

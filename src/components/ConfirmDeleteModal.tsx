@@ -9,7 +9,7 @@ export interface ConfirmDeleteModalProps {
   onConfirm: () => void;
 }
 
-export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
+export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = React.memo(({
   isOpen,
   onClose,
   selectedCount,
@@ -49,5 +49,5 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
       </div>
     </Modal>
   );
-};
+});
 

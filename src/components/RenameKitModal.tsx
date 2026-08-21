@@ -10,7 +10,7 @@ export interface RenameKitModalProps {
   onSubmit: () => void;
 }
 
-export const RenameKitModal: React.FC<RenameKitModalProps> = ({
+export const RenameKitModal: React.FC<RenameKitModalProps> = React.memo(({
   isOpen,
   onClose,
   renameKitName,
@@ -66,5 +66,5 @@ export const RenameKitModal: React.FC<RenameKitModalProps> = ({
       </form>
     </Modal>
   );
-};
+});
 

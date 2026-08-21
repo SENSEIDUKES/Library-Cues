@@ -11,7 +11,7 @@ interface GenerationControlsProps {
   isGenerating: boolean;
 }
 
-export function GenerationControls({ params, onChange, onGenerate, isGenerating }: GenerationControlsProps) {
+function GenerationControlsComponent({ params, onChange, onGenerate, isGenerating }: GenerationControlsProps) {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<PresetCategory>('Atmosphere');
 
@@ -513,3 +513,6 @@ export function GenerationControls({ params, onChange, onGenerate, isGenerating 
     </div>
   );
 }
+
+export const GenerationControls = React.memo(GenerationControlsComponent);
+

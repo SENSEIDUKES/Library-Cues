@@ -15,7 +15,7 @@ export interface BulkActionBarProps {
 
 export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   selectedCount,
-  totalCount,
+  totalCount: _totalCount,
   isAllSelected,
   onToggleSelectAll,
   children,
