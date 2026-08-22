@@ -263,4 +263,50 @@ describe('useAudioWaveform hook', () => {
       unmount();
     }).not.toThrow();
   });
+
+  it('maintains stable callback identities across DSP effect changes', async () => {
+    const { result } = renderHook(() => useAudioWaveform(asset));
+
+    await waitFor(() => {
+      expect(latestAudioInstance).not.toBeNull();
+    });
+
+    const initialSetFilterFreq = result.current.setFilterFreq;
+    const initialSetDelayFeedback = result.current.setDelayFeedback;
+    const initialSetReverbAmount = result.current.setReverbAmount;
+    const initialTogglePlay = result.current.togglePlay;
+
+    // Simulate slider drag on filter frequency
+    act(() => {
+      result.current.setFilterFreq(8000);
+    });
+
+    expect(result.current.filterFreq).toBe(8000);
+    expect(result.current.setFilterFreq).toBe(initialSetFilterFreq);
+    expect(result.current.setDelayFeedback).toBe(initialSetDelayFeedback);
+    expect(result.current.setReverbAmount).toBe(initialSetReverbAmount);
+    expect(result.current.togglePlay).toBe(initialTogglePlay);
+
+    // Simulate slider drag on delay feedback
+    act(() => {
+      result.current.setDelayFeedback(0.4);
+    });
+
+    expect(result.current.delayFeedback).toBe(0.4);
+    expect(result.current.setFilterFreq).toBe(initialSetFilterFreq);
+    expect(result.current.setDelayFeedback).toBe(initialSetDelayFeedback);
+    expect(result.current.setReverbAmount).toBe(initialSetReverbAmount);
+    expect(result.current.togglePlay).toBe(initialTogglePlay);
+
+    // Simulate slider drag on reverb amount
+    act(() => {
+      result.current.setReverbAmount(0.7);
+    });
+
+    expect(result.current.reverbAmount).toBe(0.7);
+    expect(result.current.setFilterFreq).toBe(initialSetFilterFreq);
+    expect(result.current.setDelayFeedback).toBe(initialSetDelayFeedback);
+    expect(result.current.setReverbAmount).toBe(initialSetReverbAmount);
+    expect(result.current.togglePlay).toBe(initialTogglePlay);
+  });
 });

@@ -111,4 +111,12 @@ describe('VirtualizedSoundList', () => {
       expect(handleToggleSelect).toHaveBeenCalledWith('1');
     }
   });
+
+  it('applies paint and layout containment on virtualized row wrappers', () => {
+    const { container } = render(<VirtualizedSoundList {...defaultProps} />);
+
+    const rowWrapper = container.querySelector('[data-index="0"]');
+    expect(rowWrapper).toBeInTheDocument();
+    expect(rowWrapper).toHaveStyle({ contain: 'paint layout' });
+  });
 });

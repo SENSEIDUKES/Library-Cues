@@ -67,6 +67,7 @@ function VirtualizedSoundListComponent({
     count: items.length,
     getScrollElement,
     estimateSize: () => estimateRowHeight,
+    getItemKey: (index) => items[index]?.id ?? index,
     overscan: 4,
     gap: 12,
   });
@@ -83,13 +84,7 @@ function VirtualizedSoundListComponent({
     }
   }, [focusedSoundId, items, rowVirtualizer]);
 
-  // Fallback for headless/JSDOM test environments where element bounding client rect has 0 height
-  const isHeadless = typeof window !== 'undefined' && (
-    navigator.userAgent.includes('jsdom') ||
-    (virtualItems.length === 0 && items.length > 0 && totalSize === 0)
-  );
-
-  const mountedCount = isHeadless ? items.length : virtualItems.length;
+  const mountedCount = virtualItems.length;
   const memorySavingsPercent = items.length > 0 
     ? Math.max(0, Math.round(((items.length - mountedCount) / items.length) * 100))
     : 0;
@@ -120,84 +115,56 @@ function VirtualizedSoundListComponent({
       )}
 
       {/* Virtualized Container */}
-      {isHeadless ? (
-        // Direct render fallback for JSDOM / headless test suites
-        <div className="flex flex-col gap-3">
-          {items.map(asset => (
-            <AudioWaveform
-              key={asset.id}
-              id={`sound-card-${asset.id}`}
-              asset={asset}
-              onReject={handleRemoveFromLibrary}
-              onRenameAsset={handleRenameLibraryAsset}
-              onTrimSilence={handleTrimSilence}
-              onUndoTrim={handleUndoTrim}
-              onNormalizeLoudness={handleNormalizeLoudness}
-              onFadeAudio={handleFade}
-              onUpdateAsset={handleUpdateAsset}
-              isSelected={selectedLibraryIds.has(asset.id)}
-              onToggleSelect={handleToggleSelect}
-              onShowDiagnostics={setSelectedDiagnosticAsset}
-              viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
-              kits={kits}
-              onAssignToKit={handleAssignSoundToKit}
-              onRemoveFromKit={handleRemoveSoundFromKit}
-              isFocused={focusedSoundId === asset.id}
-              onFocus={setFocusedSoundId}
-            />
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            height: `${totalSize}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualItems.map(virtualRow => {
-            const asset = items[virtualRow.index];
-            if (!asset) return null;
+      <div
+        style={{
+          height: `${totalSize}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualItems.map(virtualRow => {
+          const asset = items[virtualRow.index];
+          if (!asset) return null;
 
-            return (
-              <div
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-                className="pb-3"
-              >
-                <AudioWaveform
-                  id={`sound-card-${asset.id}`}
-                  asset={asset}
-                  onReject={handleRemoveFromLibrary}
-                  onRenameAsset={handleRenameLibraryAsset}
-                  onTrimSilence={handleTrimSilence}
-                  onUndoTrim={handleUndoTrim}
-                  onNormalizeLoudness={handleNormalizeLoudness}
-                  onFadeAudio={handleFade}
-                  onUpdateAsset={handleUpdateAsset}
-                  isSelected={selectedLibraryIds.has(asset.id)}
-                  onToggleSelect={handleToggleSelect}
-                  onShowDiagnostics={setSelectedDiagnosticAsset}
-                  viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
-                  kits={kits}
-                  onAssignToKit={handleAssignSoundToKit}
-                  onRemoveFromKit={handleRemoveSoundFromKit}
-                  isFocused={focusedSoundId === asset.id}
-                  onFocus={setFocusedSoundId}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+                contain: 'paint layout',
+              }}
+              className="pb-3"
+            >
+              <AudioWaveform
+                id={`sound-card-${asset.id}`}
+                asset={asset}
+                onReject={handleRemoveFromLibrary}
+                onRenameAsset={handleRenameLibraryAsset}
+                onTrimSilence={handleTrimSilence}
+                onUndoTrim={handleUndoTrim}
+                onNormalizeLoudness={handleNormalizeLoudness}
+                onFadeAudio={handleFade}
+                onUpdateAsset={handleUpdateAsset}
+                isSelected={selectedLibraryIds.has(asset.id)}
+                onToggleSelect={handleToggleSelect}
+                onShowDiagnostics={setSelectedDiagnosticAsset}
+                viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
+                kits={kits}
+                onAssignToKit={handleAssignSoundToKit}
+                onRemoveFromKit={handleRemoveSoundFromKit}
+                isFocused={focusedSoundId === asset.id}
+                onFocus={setFocusedSoundId}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

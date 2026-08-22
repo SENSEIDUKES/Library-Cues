@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Keyboard, 
@@ -47,6 +47,71 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
   isMac = typeof navigator !== 'undefined' ? /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent) : true,
 }) => {
   const modifierLabel = isMac ? '⌘' : 'Ctrl';
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+
+  // Focus trap & focus restoration lifecycle
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Save previous active element before opening
+    if (typeof document !== 'undefined') {
+      previouslyFocusedElementRef.current = document.activeElement as HTMLElement;
+    }
+
+    // Set initial focus inside overlay
+    const frameId = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        const firstFocusable = containerRef.current.querySelector<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        firstFocusable?.focus();
+      }
+    });
+
+    const handleWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleWindowKeyDown, true);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener('keydown', handleWindowKeyDown, true);
+      if (previouslyFocusedElementRef.current && typeof previouslyFocusedElementRef.current.focus === 'function') {
+        previouslyFocusedElementRef.current.focus();
+      }
+    };
+  }, [isOpen, onClose]);
+
+  // Tab key trap inside dialog
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab' && containerRef.current) {
+      const focusableElements = containerRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  };
 
   const shortcuts: ShortcutItem[] = [
     // Navigation
@@ -196,11 +261,18 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
         >
           <motion.div
             id="shortcuts-overlay-container"
+            ref={containerRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcuts-overlay-title"
+            aria-describedby="shortcuts-overlay-desc"
+            onKeyDown={handleKeyDown}
             initial={{ scale: 0.96, y: 12, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.96, y: 12, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="bg-neutral-900/95 border border-white/10 rounded-2xl max-w-2xl w-full shadow-2xl shadow-black/80 flex flex-col overflow-hidden text-neutral-200 my-auto relative"
+            className="bg-neutral-900/95 border border-white/10 rounded-2xl max-w-2xl w-full shadow-2xl shadow-black/80 flex flex-col overflow-hidden text-neutral-200 my-auto relative focus:outline-none"
           >
             {/* Top Accent Light & Header */}
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -212,7 +284,7 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-white tracking-tight">Keyboard Shortcuts</h2>
+                    <h2 id="shortcuts-overlay-title" className="text-sm font-bold text-white tracking-tight">Keyboard Shortcuts</h2>
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-white/10 text-neutral-300 border border-white/10">
                       {isModifierHeld ? (
                         <span className="text-emerald-400 font-semibold flex items-center gap-1">
@@ -224,7 +296,7 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
                       )}
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                  <p id="shortcuts-overlay-desc" className="text-[11px] text-neutral-400 mt-0.5">
                     Hold <kbd className="px-1 py-0.2 bg-white/10 rounded font-mono text-[10px] text-white border border-white/10">{modifierLabel}</kbd> anytime to reveal this helper HUD.
                   </p>
                 </div>
@@ -235,6 +307,7 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
                   <button
                     id="shortcuts-pin-btn"
                     onClick={onTogglePin}
+                    aria-label={isPinned ? "Unpin shortcuts overlay" : "Pin shortcuts overlay open"}
                     className={cn(
                       "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer select-none border",
                       isPinned
@@ -251,6 +324,7 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = React.memo(({
                 <button
                   id="shortcuts-close-btn"
                   onClick={onClose}
+                  aria-label="Close shortcuts overlay"
                   className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-neutral-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   title="Close (Esc)"
                 >

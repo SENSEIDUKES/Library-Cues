@@ -40,6 +40,49 @@ global.ResizeObserver = class ResizeObserver {
   constructor(_callback?: any) {}
 } as any;
 
+// Mock layout dimensions & bounding client rect for JSDOM
+Element.prototype.getBoundingClientRect = vi.fn(function (this: Element) {
+  return {
+    width: 1024,
+    height: 768,
+    top: 0,
+    left: 0,
+    bottom: 768,
+    right: 1024,
+    x: 0,
+    y: 0,
+    toJSON: () => {}
+  } as DOMRect;
+});
+
+Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+  configurable: true,
+  get() {
+    return 768;
+  },
+});
+
+Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+  configurable: true,
+  get() {
+    return 1024;
+  },
+});
+
+Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+  configurable: true,
+  get() {
+    return 768;
+  },
+});
+
+Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+  configurable: true,
+  get() {
+    return 1024;
+  },
+});
+
 // Mock Web Audio API AudioParam
 const createMockAudioParam = (defaultValue = 0) => ({
   value: defaultValue,

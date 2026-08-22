@@ -25,11 +25,24 @@ export function useAudioWaveform(asset: SoundAsset) {
   const [reverbAmount, setReverbAmount] = useState(asset.reverbAmount !== undefined ? asset.reverbAmount : 0); // 0 default (bypass)
   const [playbackRate, setPlaybackRateState] = useState(asset.playbackRate !== undefined ? asset.playbackRate : 1); // 1 default (normal)
 
+  const filterFreqRef = useRef(filterFreq);
+  const delayFeedbackRef = useRef(delayFeedback);
+  const reverbAmountRef = useRef(reverbAmount);
+
   useEffect(() => {
-    setFilterFreq(asset.filterFreq !== undefined ? asset.filterFreq : 20000);
-    setDelayFeedback(asset.delayFeedback !== undefined ? asset.delayFeedback : 0);
-    setReverbAmount(asset.reverbAmount !== undefined ? asset.reverbAmount : 0);
-    setPlaybackRateState(asset.playbackRate !== undefined ? asset.playbackRate : 1);
+    const nextFilterFreq = asset.filterFreq !== undefined ? asset.filterFreq : 20000;
+    const nextDelayFeedback = asset.delayFeedback !== undefined ? asset.delayFeedback : 0;
+    const nextReverbAmount = asset.reverbAmount !== undefined ? asset.reverbAmount : 0;
+    const nextPlaybackRate = asset.playbackRate !== undefined ? asset.playbackRate : 1;
+
+    setFilterFreq(nextFilterFreq);
+    setDelayFeedback(nextDelayFeedback);
+    setReverbAmount(nextReverbAmount);
+    setPlaybackRateState(nextPlaybackRate);
+
+    filterFreqRef.current = nextFilterFreq;
+    delayFeedbackRef.current = nextDelayFeedback;
+    reverbAmountRef.current = nextReverbAmount;
   }, [asset.id, asset.playbackRate, asset.filterFreq, asset.delayFeedback, asset.reverbAmount]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -59,7 +72,7 @@ export function useAudioWaveform(asset: SoundAsset) {
 
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = filterFreq;
+      filter.frequency.value = filterFreqRef.current;
       filterNodeRef.current = filter;
 
       const delay = ctx.createDelay(1.0);
@@ -67,7 +80,7 @@ export function useAudioWaveform(asset: SoundAsset) {
       delayNodeRef.current = delay;
 
       const feedback = ctx.createGain();
-      feedback.gain.value = delayFeedback;
+      feedback.gain.value = delayFeedbackRef.current;
       feedbackNodeRef.current = feedback;
 
       const reverb = ctx.createConvolver();
@@ -75,7 +88,7 @@ export function useAudioWaveform(asset: SoundAsset) {
       reverbNodeRef.current = reverb;
 
       const reverbGain = ctx.createGain();
-      reverbGain.gain.value = reverbAmount;
+      reverbGain.gain.value = reverbAmountRef.current;
       reverbGainNodeRef.current = reverbGain;
 
       const loopGain = ctx.createGain();
@@ -103,7 +116,7 @@ export function useAudioWaveform(asset: SoundAsset) {
     } catch (e) {
       console.warn("Web Audio API setup failed or blocked", e);
     }
-  }, [filterFreq, delayFeedback, reverbAmount]);
+  }, []);
 
   // Synchronize filter parameters in real time
   useEffect(() => {
@@ -121,16 +134,19 @@ export function useAudioWaveform(asset: SoundAsset) {
   }, [filterFreq, delayFeedback, reverbAmount]);
 
   const setFilterFreqWithSetup = useCallback((val: number) => {
+    filterFreqRef.current = val;
     setupWebAudio();
     setFilterFreq(val);
   }, [setupWebAudio]);
 
   const setDelayFeedbackWithSetup = useCallback((val: number) => {
+    delayFeedbackRef.current = val;
     setupWebAudio();
     setDelayFeedback(val);
   }, [setupWebAudio]);
 
   const setReverbAmountWithSetup = useCallback((val: number) => {
+    reverbAmountRef.current = val;
     setupWebAudio();
     setReverbAmount(val);
   }, [setupWebAudio]);
