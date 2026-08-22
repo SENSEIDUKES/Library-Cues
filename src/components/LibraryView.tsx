@@ -41,15 +41,15 @@ export interface LibraryViewProps {
   paginatedLibrary: SoundAsset[];
   handleRemoveFromLibrary: (id: string) => void;
   handleRenameLibraryAsset: (id: string, name: string) => void;
-  handleTrimSilence: (asset: SoundAsset, saveToLib?: boolean) => void;
-  handleUndoTrim: (asset: SoundAsset, saveToLib?: boolean) => void;
-  handleNormalizeLoudness: (asset: SoundAsset, saveToLib?: boolean) => void;
-  handleFade: (asset: SoundAsset, saveToLib?: boolean) => void;
+  handleTrimSilence: (asset: SoundAsset) => void;
+  handleUndoTrim: (asset: SoundAsset) => void;
+  handleNormalizeLoudness: (asset: SoundAsset) => void;
+  handleFade: (asset: SoundAsset) => void;
   handleUpdateAsset: (asset: SoundAsset) => void;
   handleToggleSelect: (id: string) => void;
   setSelectedDiagnosticAsset: (asset: SoundAsset | null) => void;
-  handleAssignSoundToKit: (soundId: string, kitId: string) => void;
-  handleRemoveSoundFromKit: (soundId: string, kitId: string) => void;
+  handleAssignSoundToKit: (kitId: string, soundId: string) => void;
+  handleRemoveSoundFromKit: (kitId: string, soundId: string) => void;
   focusedSoundId: string | null;
   setFocusedSoundId: (id: string | null) => void;
   totalSounds: number;
@@ -510,10 +510,10 @@ const LibraryViewComponent: React.FC<LibraryViewProps> = ({
               setFocusedSoundId={setFocusedSoundId}
               handleRemoveFromLibrary={handleRemoveFromLibrary}
               handleRenameLibraryAsset={handleRenameLibraryAsset}
-              handleTrimSilence={(asset) => handleTrimSilence(asset, true)}
-              handleUndoTrim={(asset) => handleUndoTrim(asset, true)}
-              handleNormalizeLoudness={(asset) => handleNormalizeLoudness(asset, true)}
-              handleFade={(asset) => handleFade(asset, true)}
+              handleTrimSilence={handleTrimSilence}
+              handleUndoTrim={handleUndoTrim}
+              handleNormalizeLoudness={handleNormalizeLoudness}
+              handleFade={handleFade}
               handleUpdateAsset={handleUpdateAsset}
               handleToggleSelect={handleToggleSelect}
               setSelectedDiagnosticAsset={setSelectedDiagnosticAsset}

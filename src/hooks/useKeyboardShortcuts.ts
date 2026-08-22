@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 export interface KeyboardActions {
   activeTab: 'synthesize' | 'library' | 'profile';
   setActiveTab: (tab: 'synthesize' | 'library' | 'profile') => void;
-  isShortcutsPinned: boolean;
-  setIsShortcutsPinned: (pinned: boolean | ((prev: boolean) => boolean)) => void;
+  isShortcutsPinned?: boolean;
+  setIsShortcutsPinned?: (pinned: boolean | ((prev: boolean) => boolean)) => void;
   showTestCenter: boolean;
   setShowTestCenter: (show: boolean) => void;
   showCreateKitModal: boolean;
@@ -36,19 +36,43 @@ export interface KeyboardActions {
 }
 
 export function useKeyboardShortcuts(actions: KeyboardActions) {
-  const [isModifierHeld, setIsModifierHeld] = useState(false);
-  const [isShortcutsPinned, setIsShortcutsPinned] = useState(false);
+  const [isModifierHeld, setIsModifierHeldState] = useState(false);
+  const [isShortcutsPinned, setIsShortcutsPinnedState] = useState(false);
   const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
 
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
+  const isModifierHeldRef = useRef(false);
+  const isShortcutsPinnedRef = useRef(false);
+
+  const setIsModifierHeld = (held: boolean) => {
+    isModifierHeldRef.current = held;
+    setIsModifierHeldState(held);
+  };
+
+  const setIsShortcutsPinned = (pinned: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof pinned === 'function') {
+      setIsShortcutsPinnedState(prev => {
+        const next = pinned(prev);
+        isShortcutsPinnedRef.current = next;
+        return next;
+      });
+    } else {
+      isShortcutsPinnedRef.current = pinned;
+      setIsShortcutsPinnedState(pinned);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isModifier = e.key === 'Meta' || e.key === 'Control' || e.metaKey || e.ctrlKey;
       if (isModifier) {
-        setIsModifierHeld(true);
-        actionsRef.current.onModifierHeldChange?.(true);
+        if (!isModifierHeldRef.current) {
+          isModifierHeldRef.current = true;
+          setIsModifierHeldState(true);
+          actionsRef.current.onModifierHeldChange?.(true);
+        }
       }
 
       // Update active keys set for HUD visualizers
@@ -85,10 +109,12 @@ export function useKeyboardShortcuts(actions: KeyboardActions) {
 
       // Always allow Escape to close shortcuts overlay, modals, or clear selection
       if (e.key === 'Escape') {
-        if (isShortcutsPinned || isModifierHeld) {
-          setIsShortcutsPinned(false);
-          setIsModifierHeld(false);
-          act.setIsShortcutsPinned(false);
+        if (isShortcutsPinnedRef.current || isModifierHeldRef.current) {
+          isShortcutsPinnedRef.current = false;
+          setIsShortcutsPinnedState(false);
+          isModifierHeldRef.current = false;
+          setIsModifierHeldState(false);
+          act.setIsShortcutsPinned?.(false);
           return;
         }
         if (act.showTestCenter) {
@@ -156,11 +182,10 @@ export function useKeyboardShortcuts(actions: KeyboardActions) {
       // Cmd/Ctrl + / or ?: Toggle Shortcuts pinned
       if (((e.metaKey || e.ctrlKey) && e.key === '/') || e.key === '?') {
         e.preventDefault();
-        setIsShortcutsPinned(prev => {
-          const next = !prev;
-          act.setIsShortcutsPinned(next);
-          return next;
-        });
+        const next = !isShortcutsPinnedRef.current;
+        isShortcutsPinnedRef.current = next;
+        setIsShortcutsPinnedState(next);
+        act.setIsShortcutsPinned?.(next);
         return;
       }
 
@@ -225,8 +250,11 @@ export function useKeyboardShortcuts(actions: KeyboardActions) {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) {
-        setIsModifierHeld(false);
-        actionsRef.current.onModifierHeldChange?.(false);
+        if (isModifierHeldRef.current) {
+          isModifierHeldRef.current = false;
+          setIsModifierHeldState(false);
+          actionsRef.current.onModifierHeldChange?.(false);
+        }
       }
 
       const keyLower = e.key.toLowerCase();
@@ -252,7 +280,8 @@ export function useKeyboardShortcuts(actions: KeyboardActions) {
     };
 
     const handleWindowBlur = () => {
-      setIsModifierHeld(false);
+      isModifierHeldRef.current = false;
+      setIsModifierHeldState(false);
       setActiveKeys(new Set());
       actionsRef.current.onModifierHeldChange?.(false);
     };
@@ -266,7 +295,7 @@ export function useKeyboardShortcuts(actions: KeyboardActions) {
       window.removeEventListener('keyup', handleKeyUp, true);
       window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [isShortcutsPinned, isModifierHeld]);
+  }, []);
 
   return {
     isModifierHeld,

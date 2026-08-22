@@ -269,6 +269,7 @@ describe('App', () => {
     // Rename
     const var1Input = screen.getByDisplayValue('SFX - Var 1');
     fireEvent.change(var1Input, { target: { value: 'Renamed Variation' } });
+    fireEvent.blur(var1Input);
     await waitFor(() => {
       expect(screen.getByDisplayValue('Renamed Variation')).toBeInTheDocument();
     });

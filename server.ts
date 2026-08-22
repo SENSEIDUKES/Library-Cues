@@ -123,7 +123,9 @@ async function fadeAudioWithFFmpeg(audioBuffer: Buffer, mimeType: string, fadeIn
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Set request payload limit to 50MB to accommodate large audio buffers and base64 payloads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Lazy-loaded Gemini AI client
 let geminiClient: GoogleGenAI | null = null;
@@ -529,6 +531,26 @@ app.post("/api/fade", async (req, res) => {
       }
     });
   }
+});
+
+// Global error handler for request payload issues (e.g. 413 Payload Too Large)
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.type === "entity.too.large" || err.status === 413) {
+    return res.status(413).json({
+      error: "Audio payload exceeds the allowed request size limit (50MB).",
+      diagnostics: {
+        engine: "Express Gateway",
+        success: false,
+        logs: ["[!] Error: 413 Payload Too Large - Request entity exceeded 50MB size limit."]
+      }
+    });
+  }
+  if (err) {
+    return res.status(err.status || 500).json({
+      error: err.message || "An unexpected server error occurred."
+    });
+  }
+  next();
 });
 
 async function startServer() {

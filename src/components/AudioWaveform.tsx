@@ -6,20 +6,21 @@ import { SoundAsset, SoundKit } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { decodeAudioBase64, bakeEffectsOnClientSide } from '../lib/audio';
 
-interface AudioWaveformProps {
+export interface AudioWaveformProps {
   key?: string;
   asset: SoundAsset;
-  onKeep?: () => void;
-  onReject?: () => void;
-  onRename?: (newName: string) => void;
-  onTrimSilence?: () => Promise<void>;
-  onUndoTrim?: () => Promise<void>;
-  onNormalizeLoudness?: () => Promise<void>;
-  onFadeAudio?: () => Promise<void>;
+  onKeep?: (asset: SoundAsset) => void;
+  onReject?: (id: string) => void;
+  onRename?: (newName: string, assetId?: string) => void;
+  onRenameAsset?: (assetId: string, newName: string) => void;
+  onTrimSilence?: (asset: SoundAsset) => Promise<void> | void;
+  onUndoTrim?: (asset: SoundAsset) => Promise<void> | void;
+  onNormalizeLoudness?: (asset: SoundAsset) => Promise<void> | void;
+  onFadeAudio?: (asset: SoundAsset) => Promise<void> | void;
   onUpdateAsset?: (updatedAsset: SoundAsset) => void;
   isKept?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: () => void;
+  onToggleSelect?: (id: string) => void;
   className?: string;
   onShowDiagnostics?: (asset: SoundAsset) => void;
   viewMode?: 'detailed' | 'compact';
@@ -27,7 +28,7 @@ interface AudioWaveformProps {
   onAssignToKit?: (kitId: string, soundId: string) => void;
   onRemoveFromKit?: (kitId: string, soundId: string) => void;
   isFocused?: boolean;
-  onFocus?: () => void;
+  onFocus?: (id: string) => void;
   id?: string;
 }
 
@@ -36,6 +37,7 @@ function AudioWaveformComponent({
   onKeep, 
   onReject, 
   onRename, 
+  onRenameAsset,
   onTrimSilence, 
   onUndoTrim, 
   onNormalizeLoudness, 
@@ -55,12 +57,29 @@ function AudioWaveformComponent({
   id
 }: AudioWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
   const [isTrimming, setIsTrimming] = useState(false);
   const [isBaking, setIsBaking] = useState(false);
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [isKitDropdownOpen, setIsKitDropdownOpen] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [localName, setLocalName] = useState(asset.name);
+
+  // ResizeObserver for canvas responsiveness across window resizes & mobile orientation changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCanvasDimensions({ width, height });
+      }
+    });
+
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
   
   useEffect(() => {
     setLocalName(asset.name);
@@ -71,8 +90,9 @@ function AudioWaveformComponent({
   };
 
   const handleNameBlur = () => {
-    if (localName !== asset.name && onRename) {
-      onRename(localName);
+    if (localName !== asset.name) {
+      onRenameAsset?.(asset.id, localName);
+      onRename?.(localName);
     }
   };
 
@@ -80,6 +100,76 @@ function AudioWaveformComponent({
     if (e.key === 'Enter') {
       e.currentTarget.blur();
     }
+  };
+
+  const handleKeepClick = () => {
+    onKeep?.(asset);
+  };
+
+  const handleRejectClick = () => {
+    onReject?.(asset.id);
+  };
+
+  const handleTrimSilenceClick = async () => {
+    if (!onTrimSilence) return;
+    setIsTrimming(true);
+    try {
+      await onTrimSilence(asset);
+    } finally {
+      setIsTrimming(false);
+    }
+  };
+
+  const handleUndoTrimClick = async () => {
+    if (!onUndoTrim) return;
+    setIsTrimming(true);
+    try {
+      await onUndoTrim(asset);
+    } finally {
+      setIsTrimming(false);
+    }
+  };
+
+  const handleNormalizeLoudnessClick = async () => {
+    if (!onNormalizeLoudness) return;
+    setIsTrimming(true);
+    try {
+      await onNormalizeLoudness(asset);
+    } finally {
+      setIsTrimming(false);
+    }
+  };
+
+  const handleFadeAudioClick = async () => {
+    if (!onFadeAudio) return;
+    setIsTrimming(true);
+    try {
+      await onFadeAudio(asset);
+    } finally {
+      setIsTrimming(false);
+    }
+  };
+
+  const handleToggleSelectClick = () => {
+    onToggleSelect?.(asset.id);
+  };
+
+  const handleShowDiagnosticsClick = () => {
+    onShowDiagnostics?.(asset);
+  };
+
+  const handleCardFocusClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') || 
+      target.closest('input') || 
+      target.closest('select') || 
+      target.closest('textarea') ||
+      target.closest('a')
+    ) {
+      return;
+    }
+    onFocus?.(asset.id);
   };
 
   const updateMetadata = (updates: Partial<SoundAsset>) => {
@@ -213,7 +303,7 @@ function AudioWaveformComponent({
       ctx.closePath();
       ctx.fill();
     });
-  }, [peaks, currentTime, displayDuration, isDecoding]);
+  }, [peaks, currentTime, displayDuration, isDecoding, canvasDimensions]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -356,13 +446,7 @@ function AudioWaveformComponent({
     return (
       <div 
         id={id}
-        onClick={(e) => {
-          const target = e.target as HTMLElement;
-          if (target.closest('button') || target.closest('input') || target.closest('select')) {
-            return;
-          }
-          onFocus?.();
-        }}
+        onClick={handleCardFocusClick}
         className={cn(
           "py-2.5 px-4 rounded-xl bg-neutral-900/40 border border-white/[0.04] backdrop-blur-xl transition-all duration-200 relative group flex items-center justify-between gap-3 min-h-[52px]", 
           isSelected && "border-white/[0.15] bg-white/[0.02]",
@@ -375,7 +459,7 @@ function AudioWaveformComponent({
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onToggleSelect && (
             <button 
-              onClick={onToggleSelect} 
+              onClick={handleToggleSelectClick} 
               aria-label={isSelected ? `Deselect ${asset.name}` : `Select ${asset.name}`}
               className={cn(
                 "text-neutral-600 hover:text-neutral-400 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none shrink-0", 
@@ -557,7 +641,7 @@ function AudioWaveformComponent({
           {/* Delete Button */}
           {onReject && (
             <button 
-              onClick={onReject} 
+              onClick={handleRejectClick} 
               className="w-6 h-6 rounded-full text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center transition-colors cursor-pointer shrink-0" 
               title="Delete"
             >
@@ -612,10 +696,7 @@ function AudioWaveformComponent({
                 <div className="flex gap-2">
                   {onTrimSilence && !asset.previousAudioBase64 && (
                     <button
-                      onClick={async () => {
-                        setIsTrimming(true);
-                        try { await onTrimSilence(); } finally { setIsTrimming(false); }
-                      }}
+                      onClick={handleTrimSilenceClick}
                       className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.04] cursor-pointer transition-colors"
                     >
                       <Scissors className="w-3 h-3" /> Trim Silence
@@ -623,10 +704,7 @@ function AudioWaveformComponent({
                   )}
                   {onNormalizeLoudness && !asset.previousAudioBase64 && (
                     <button
-                      onClick={async () => {
-                        setIsTrimming(true);
-                        try { await onNormalizeLoudness(); } finally { setIsTrimming(false); }
-                      }}
+                      onClick={handleNormalizeLoudnessClick}
                       className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-1 rounded-full border border-white/[0.04] cursor-pointer transition-colors"
                     >
                       <Activity className="w-3 h-3" /> Normalize
@@ -634,10 +712,7 @@ function AudioWaveformComponent({
                   )}
                   {onUndoTrim && asset.previousAudioBase64 && (
                     <button
-                      onClick={async () => {
-                        setIsTrimming(true);
-                        try { await onUndoTrim(); } finally { setIsTrimming(false); }
-                      }}
+                      onClick={handleUndoTrimClick}
                       className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 px-2.5 py-1 rounded-full border border-emerald-500/20 cursor-pointer transition-colors"
                     >
                       <Undo2 className="w-3 h-3" /> Undo DSP
@@ -670,13 +745,7 @@ function AudioWaveformComponent({
   return (
     <div 
       id={id}
-      onClick={(e) => {
-        const target = e.target as HTMLElement;
-        if (target.closest('button') || target.closest('input') || target.closest('select')) {
-          return;
-        }
-        onFocus?.();
-      }}
+      onClick={handleCardFocusClick}
       className={cn(
         "p-4 rounded-2xl bg-neutral-900/35 border border-white/[0.04] backdrop-blur-xl transition-all duration-300 relative group", 
         isKept ? "border-white/[0.12] bg-white/[0.01]" : "", 
@@ -689,7 +758,7 @@ function AudioWaveformComponent({
         <div className="flex items-center gap-2.5 max-w-[75%]">
           {onToggleSelect && (
             <button 
-              onClick={onToggleSelect} 
+              onClick={handleToggleSelectClick} 
               aria-label={isSelected ? `Deselect ${asset.name}` : `Select ${asset.name}`}
               className={cn(
                 "text-neutral-500 hover:text-neutral-300 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none", 
@@ -701,7 +770,7 @@ function AudioWaveformComponent({
           )}
           {onKeep && (
             <button 
-              onClick={onKeep} 
+              onClick={handleKeepClick} 
               aria-label={isKept ? `Mark ${asset.name} as unkept` : `Keep ${asset.name} in library`}
               className={cn(
                 "text-neutral-500 hover:text-neutral-300 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer select-none", 
@@ -726,9 +795,69 @@ function AudioWaveformComponent({
           </div>
         </div>
         <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+          {kits && kits.length > 0 && (
+            <div className="relative">
+              <button 
+                onClick={() => setIsKitDropdownOpen(!isKitDropdownOpen)}
+                aria-label={`Assign ${asset.name} to Sound Kit`}
+                className={cn(
+                  "p-1 text-neutral-400 hover:text-white focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded transition-colors cursor-pointer",
+                  isKitDropdownOpen && "text-white"
+                )}
+                title="Add to Kit"
+              >
+                <FolderArchive className="w-3.5 h-3.5" />
+              </button>
+
+              <AnimatePresence>
+                {isKitDropdownOpen && (
+                  <>
+                    {/* Click-away backdrop */}
+                    <div className="fixed inset-0 z-40" onClick={() => setIsKitDropdownOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                      className="absolute right-0 top-full mt-1.5 z-50 bg-neutral-900 border border-white/[0.08] rounded-xl p-1.5 shadow-xl w-48 text-left"
+                    >
+                      <div className="px-2 py-1 text-[9px] font-bold text-neutral-500 uppercase tracking-wider border-b border-white/[0.03] mb-1">
+                        Select Kits
+                      </div>
+                      <div className="max-h-40 overflow-y-auto scrollbar-none flex flex-col gap-0.5">
+                        {kits.map(kit => {
+                          const isInKit = kit.soundIds.includes(asset.id);
+                          return (
+                            <button
+                              key={kit.id}
+                              onClick={() => {
+                                if (isInKit) {
+                                  onRemoveFromKit?.(kit.id, asset.id);
+                                } else {
+                                  onAssignToKit?.(kit.id, asset.id);
+                                }
+                              }}
+                              className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-lg text-[11px] hover:bg-white/[0.04] transition-colors cursor-pointer"
+                            >
+                              <span className="truncate pr-2">{kit.name}</span>
+                              {isInKit ? (
+                                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              ) : (
+                                <Plus className="w-3 h-3 text-neutral-600 hover:text-white shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
           {onReject && (
             <button 
-              onClick={onReject} 
+              onClick={handleRejectClick} 
               aria-label={`Delete ${asset.name}`}
               className="p-1 text-neutral-400 hover:text-red-400 focus-visible:ring-1 focus-visible:ring-rose-400 focus-visible:outline-none rounded transition-colors cursor-pointer" 
               title="Delete"
@@ -774,7 +903,7 @@ function AudioWaveformComponent({
           )}
           {asset.diagnostics && onShowDiagnostics && (
             <button
-              onClick={() => onShowDiagnostics(asset)}
+              onClick={handleShowDiagnosticsClick}
               aria-label="Inspect DSP Pipeline Telemetry Logs"
               className="inline-flex items-center gap-1 text-[8px] font-bold tracking-tight text-neutral-400 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2.5 py-0.5 rounded-full transition-all cursor-pointer select-none ml-auto focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none"
               title="Inspect DSP Pipeline Telemetry Logs"
@@ -898,14 +1027,7 @@ function AudioWaveformComponent({
 
             {onTrimSilence && !asset.previousAudioBase64 && (
               <button
-                onClick={async () => {
-                  setIsTrimming(true);
-                  try {
-                    await onTrimSilence();
-                  } finally {
-                    setIsTrimming(false);
-                  }
-                }}
+                onClick={handleTrimSilenceClick}
                 disabled={isTrimming}
                 aria-label={`Trim silence for ${asset.name}`}
                 className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"
@@ -918,14 +1040,7 @@ function AudioWaveformComponent({
 
             {onUndoTrim && asset.previousAudioBase64 && (
               <button
-                onClick={async () => {
-                  setIsTrimming(true);
-                  try {
-                    await onUndoTrim();
-                  } finally {
-                    setIsTrimming(false);
-                  }
-                }}
+                onClick={handleUndoTrimClick}
                 disabled={isTrimming}
                 aria-label={`Undo audio processing for ${asset.name}`}
                 className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-emerald-400 focus-visible:outline-none rounded"
@@ -938,14 +1053,7 @@ function AudioWaveformComponent({
 
             {onNormalizeLoudness && !asset.previousAudioBase64 && (
               <button
-                onClick={async () => {
-                  setIsTrimming(true);
-                  try {
-                    await onNormalizeLoudness();
-                  } finally {
-                    setIsTrimming(false);
-                  }
-                }}
+                onClick={handleNormalizeLoudnessClick}
                 disabled={isTrimming}
                 aria-label={`Normalize loudness for ${asset.name}`}
                 className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"
@@ -958,14 +1066,7 @@ function AudioWaveformComponent({
 
             {onFadeAudio && !asset.previousAudioBase64 && (
               <button
-                onClick={async () => {
-                  setIsTrimming(true);
-                  try {
-                    await onFadeAudio();
-                  } finally {
-                    setIsTrimming(false);
-                  }
-                }}
+                onClick={handleFadeAudioClick}
                 disabled={isTrimming}
                 aria-label={`Apply fade in and fade out for ${asset.name}`}
                 className="ml-2 flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:outline-none rounded"

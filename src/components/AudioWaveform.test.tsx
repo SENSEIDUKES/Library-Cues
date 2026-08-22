@@ -106,6 +106,73 @@ describe('AudioWaveform', () => {
     }
   });
 
+  it('calls onRenameAsset when provided', () => {
+    const handleRenameAsset = vi.fn();
+    render(<AudioWaveform asset={defaultAsset} onRenameAsset={handleRenameAsset} />);
+    
+    const input = screen.getByDisplayValue('Test Sound');
+    fireEvent.change(input, { target: { value: 'Renamed Title' } });
+    fireEvent.blur(input);
+    expect(handleRenameAsset).toHaveBeenCalledWith('1', 'Renamed Title');
+  });
+
+  it('calls DSP action handlers with the asset reference directly', async () => {
+    const handleTrimSilence = vi.fn().mockResolvedValue(undefined);
+    const { unmount } = render(
+      <AudioWaveform 
+        asset={defaultAsset} 
+        onTrimSilence={handleTrimSilence}
+      />
+    );
+
+    const trimBtn = screen.getByTitle('Trim Silence');
+    fireEvent.click(trimBtn);
+    expect(handleTrimSilence).toHaveBeenCalledWith(defaultAsset);
+    unmount();
+
+    const handleNormalize = vi.fn().mockResolvedValue(undefined);
+    const { unmount: unmount2 } = render(
+      <AudioWaveform 
+        asset={defaultAsset} 
+        onNormalizeLoudness={handleNormalize}
+      />
+    );
+    const normalizeBtn = screen.getByTitle('Normalize Loudness');
+    fireEvent.click(normalizeBtn);
+    expect(handleNormalize).toHaveBeenCalledWith(defaultAsset);
+    unmount2();
+
+    const handleFade = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AudioWaveform 
+        asset={defaultAsset} 
+        onFadeAudio={handleFade}
+      />
+    );
+    const fadeBtn = screen.getByTitle('Apply Fade In/Out (from Synthesis Settings)');
+    fireEvent.click(fadeBtn);
+    expect(handleFade).toHaveBeenCalledWith(defaultAsset);
+  });
+
+  it('calls onUndoTrim when sound has previousAudioBase64', async () => {
+    const handleUndoTrim = vi.fn().mockResolvedValue(undefined);
+    const processedAsset: SoundAsset = {
+      ...defaultAsset,
+      previousAudioBase64: 'original-base64-data',
+    };
+
+    render(
+      <AudioWaveform 
+        asset={processedAsset} 
+        onUndoTrim={handleUndoTrim}
+      />
+    );
+
+    const undoBtn = screen.getByTitle('Undo Action');
+    fireEvent.click(undoBtn);
+    expect(handleUndoTrim).toHaveBeenCalledWith(processedAsset);
+  });
+
   it('renders accessible slider attributes and handles keyboard navigation on canvas', () => {
     render(<AudioWaveform asset={defaultAsset} />);
     const slider = screen.getByRole('slider', { name: /Audio waveform for Test Sound/i });
@@ -125,5 +192,37 @@ describe('AudioWaveform', () => {
   it('renders correctly with loop enabled', () => {
     render(<AudioWaveform asset={{ ...defaultAsset, loop: true }} />);
     expect(screen.getByText('Seamless Loop')).toBeInTheDocument();
+  });
+
+  it('renders kit dropdown and allows assigning/removing sounds from kits', () => {
+    const mockKits = [
+      { id: 'kit-1', name: 'Ambient FX', soundIds: ['1'], createdAt: Date.now() },
+      { id: 'kit-2', name: 'UI Clicks', soundIds: [], createdAt: Date.now() }
+    ];
+    const handleAssign = vi.fn();
+    const handleRemove = vi.fn();
+
+    render(
+      <AudioWaveform 
+        asset={defaultAsset} 
+        kits={mockKits}
+        onAssignToKit={handleAssign}
+        onRemoveFromKit={handleRemove}
+      />
+    );
+
+    const kitBtn = screen.getByTitle('Add to Kit');
+    fireEvent.click(kitBtn);
+
+    expect(screen.getByText('Ambient FX')).toBeInTheDocument();
+    expect(screen.getByText('UI Clicks')).toBeInTheDocument();
+
+    // Click UI Clicks (which doesn't contain the sound yet)
+    fireEvent.click(screen.getByText('UI Clicks'));
+    expect(handleAssign).toHaveBeenCalledWith('kit-2', '1');
+
+    // Click Ambient FX (which contains the sound)
+    fireEvent.click(screen.getByText('Ambient FX'));
+    expect(handleRemove).toHaveBeenCalledWith('kit-1', '1');
   });
 });

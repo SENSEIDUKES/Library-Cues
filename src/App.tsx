@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { SoundAsset } from './types';
 import { GenerationControls } from './components/GenerationControls';
 import { AudioWaveform } from './components/AudioWaveform';
 import { FolderArchive, Library, Sparkles, AlertTriangle, CheckSquare, Square, Trash2, Download, CheckCircle, User } from 'lucide-react';
@@ -68,6 +69,7 @@ export default function App() {
     variations,
     setVariations,
     selectedSynthesisIds,
+    setSelectedSynthesisIds,
     handleGenerate,
     handleReject,
     handleRenameVariation,
@@ -247,6 +249,47 @@ export default function App() {
     });
   }, [selectedKitId, selectedLibraryIds, handleBulkRemoveSoundsFromKit, clearSelection, showToast]);
 
+  // Fast set lookup for kept sounds in library
+  const libraryIdSet = useMemo(() => new Set(library.map(lib => lib.id)), [library]);
+
+  // Memoized handlers for Synthesis variations cards (avoids recreating inline closures on every render)
+  const handleTrimSilenceVariation = useCallback((asset: SoundAsset) => {
+    return handleTrimSilence(asset, false);
+  }, [handleTrimSilence]);
+
+  const handleUndoTrimVariation = useCallback((asset: SoundAsset) => {
+    return handleUndoTrim(asset, false);
+  }, [handleUndoTrim]);
+
+  const handleNormalizeLoudnessVariation = useCallback((asset: SoundAsset) => {
+    return handleNormalizeLoudness(asset, false);
+  }, [handleNormalizeLoudness]);
+
+  const handleFadeVariation = useCallback((asset: SoundAsset) => {
+    return handleFade(asset, false, params.fadeIn, params.fadeOut);
+  }, [handleFade, params.fadeIn, params.fadeOut]);
+
+  const handleUpdateVariation = useCallback((updated: SoundAsset) => {
+    setVariations(prev => prev.map(v => v.id === updated.id ? updated : v));
+  }, [setVariations]);
+
+  // Memoized handlers for Library View DSP actions
+  const handleTrimSilenceLibrary = useCallback((asset: SoundAsset) => {
+    return handleTrimSilence(asset, true);
+  }, [handleTrimSilence]);
+
+  const handleUndoTrimLibrary = useCallback((asset: SoundAsset) => {
+    return handleUndoTrim(asset, true);
+  }, [handleUndoTrim]);
+
+  const handleNormalizeLoudnessLibrary = useCallback((asset: SoundAsset) => {
+    return handleNormalizeLoudness(asset, true);
+  }, [handleNormalizeLoudness]);
+
+  const handleFadeLibrary = useCallback((asset: SoundAsset) => {
+    return handleFade(asset, true, params.fadeIn, params.fadeOut);
+  }, [handleFade, params.fadeIn, params.fadeOut]);
+
   // Global Keyboard Shortcuts
   const {
     isModifierHeld,
@@ -257,8 +300,6 @@ export default function App() {
   } = useKeyboardShortcuts({
     activeTab,
     setActiveTab,
-    isShortcutsPinned: false,
-    setIsShortcutsPinned: () => {},
     showTestCenter,
     setShowTestCenter,
     showCreateKitModal,
@@ -272,7 +313,7 @@ export default function App() {
     selectedLibraryIds,
     clearLibrarySelection: clearSelection,
     selectedSynthesisIds,
-    clearSynthesisSelection: useCallback(() => {}, []),
+    clearSynthesisSelection: useCallback(() => setSelectedSynthesisIds(new Set()), [setSelectedSynthesisIds]),
     exportKit: useCallback(() => exportKit(), [exportKit]),
     libraryLength: library.length,
     handleGenerate,
@@ -495,23 +536,24 @@ export default function App() {
                         </>
                       ) : (
                         variations.map(asset => {
-                          const isKept = library.some(l => l.id === asset.id);
+                          const isKept = libraryIdSet.has(asset.id);
                           return (
                             <AudioWaveform 
+                              id={`synth-card-${asset.id}`}
                               key={asset.id} 
                               asset={asset} 
-                              onKeep={() => handleKeep(asset)}
-                              onReject={() => handleReject(asset.id)}
-                              onRename={(name) => handleRenameVariation(asset.id, name)}
-                              onTrimSilence={() => handleTrimSilence(asset, false)}
-                              onUndoTrim={() => handleUndoTrim(asset, false)}
-                              onNormalizeLoudness={() => handleNormalizeLoudness(asset, false)}
-                              onFadeAudio={() => handleFade(asset, false, params.fadeIn, params.fadeOut)}
-                              onUpdateAsset={(updated) => setVariations(prev => prev.map(v => v.id === asset.id ? updated : v))}
+                              onKeep={handleKeep}
+                              onReject={handleReject}
+                              onRenameAsset={handleRenameVariation}
+                              onTrimSilence={handleTrimSilenceVariation}
+                              onUndoTrim={handleUndoTrimVariation}
+                              onNormalizeLoudness={handleNormalizeLoudnessVariation}
+                              onFadeAudio={handleFadeVariation}
+                              onUpdateAsset={handleUpdateVariation}
                               isKept={isKept}
                               isSelected={selectedSynthesisIds.has(asset.id)}
-                              onToggleSelect={() => handleToggleSynthesisSelect(asset.id)}
-                              onShowDiagnostics={(a) => setSelectedDiagnosticAsset(a)}
+                              onToggleSelect={handleToggleSynthesisSelect}
+                              onShowDiagnostics={setSelectedDiagnosticAsset}
                             />
                           );
                         })
@@ -561,10 +603,10 @@ export default function App() {
                   paginatedLibrary={paginatedLibrary}
                   handleRemoveFromLibrary={handleRemoveFromLibrary}
                   handleRenameLibraryAsset={handleRenameLibraryAsset}
-                  handleTrimSilence={(asset) => handleTrimSilence(asset, true)}
-                  handleUndoTrim={(asset) => handleUndoTrim(asset, true)}
-                  handleNormalizeLoudness={(asset) => handleNormalizeLoudness(asset, true)}
-                  handleFade={(asset) => handleFade(asset, true, params.fadeIn, params.fadeOut)}
+                  handleTrimSilence={handleTrimSilenceLibrary}
+                  handleUndoTrim={handleUndoTrimLibrary}
+                  handleNormalizeLoudness={handleNormalizeLoudnessLibrary}
+                  handleFade={handleFadeLibrary}
                   handleUpdateAsset={handleUpdateAsset}
                   handleToggleSelect={handleToggleSelect}
                   setSelectedDiagnosticAsset={setSelectedDiagnosticAsset}

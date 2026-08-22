@@ -21,8 +21,8 @@ export interface VirtualizedSoundListProps {
   handleUpdateAsset: (asset: SoundAsset) => void;
   handleToggleSelect: (id: string) => void;
   setSelectedDiagnosticAsset: (asset: SoundAsset | null) => void;
-  handleAssignSoundToKit: (soundId: string, kitId: string) => void;
-  handleRemoveSoundFromKit: (soundId: string, kitId: string) => void;
+  handleAssignSoundToKit: (kitId: string, soundId: string) => void;
+  handleRemoveSoundFromKit: (kitId: string, soundId: string) => void;
   className?: string;
   showTelemetry?: boolean;
 }
@@ -128,22 +128,22 @@ function VirtualizedSoundListComponent({
               key={asset.id}
               id={`sound-card-${asset.id}`}
               asset={asset}
-              onReject={() => handleRemoveFromLibrary(asset.id)}
-              onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
-              onTrimSilence={() => handleTrimSilence(asset)}
-              onUndoTrim={() => handleUndoTrim(asset)}
-              onNormalizeLoudness={() => handleNormalizeLoudness(asset)}
-              onFadeAudio={() => handleFade(asset)}
+              onReject={handleRemoveFromLibrary}
+              onRenameAsset={handleRenameLibraryAsset}
+              onTrimSilence={handleTrimSilence}
+              onUndoTrim={handleUndoTrim}
+              onNormalizeLoudness={handleNormalizeLoudness}
+              onFadeAudio={handleFade}
               onUpdateAsset={handleUpdateAsset}
               isSelected={selectedLibraryIds.has(asset.id)}
-              onToggleSelect={() => handleToggleSelect(asset.id)}
-              onShowDiagnostics={(a) => setSelectedDiagnosticAsset(a)}
+              onToggleSelect={handleToggleSelect}
+              onShowDiagnostics={setSelectedDiagnosticAsset}
               viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
               kits={kits}
               onAssignToKit={handleAssignSoundToKit}
               onRemoveFromKit={handleRemoveSoundFromKit}
               isFocused={focusedSoundId === asset.id}
-              onFocus={() => setFocusedSoundId(asset.id)}
+              onFocus={setFocusedSoundId}
             />
           ))}
         </div>
@@ -176,22 +176,22 @@ function VirtualizedSoundListComponent({
                 <AudioWaveform
                   id={`sound-card-${asset.id}`}
                   asset={asset}
-                  onReject={() => handleRemoveFromLibrary(asset.id)}
-                  onRename={(name) => handleRenameLibraryAsset(asset.id, name)}
-                  onTrimSilence={() => handleTrimSilence(asset)}
-                  onUndoTrim={() => handleUndoTrim(asset)}
-                  onNormalizeLoudness={() => handleNormalizeLoudness(asset)}
-                  onFadeAudio={() => handleFade(asset)}
+                  onReject={handleRemoveFromLibrary}
+                  onRenameAsset={handleRenameLibraryAsset}
+                  onTrimSilence={handleTrimSilence}
+                  onUndoTrim={handleUndoTrim}
+                  onNormalizeLoudness={handleNormalizeLoudness}
+                  onFadeAudio={handleFade}
                   onUpdateAsset={handleUpdateAsset}
                   isSelected={selectedLibraryIds.has(asset.id)}
-                  onToggleSelect={() => handleToggleSelect(asset.id)}
-                  onShowDiagnostics={(a) => setSelectedDiagnosticAsset(a)}
+                  onToggleSelect={handleToggleSelect}
+                  onShowDiagnostics={setSelectedDiagnosticAsset}
                   viewMode={viewDensity === 'compact' ? 'compact' : 'detailed'}
                   kits={kits}
                   onAssignToKit={handleAssignSoundToKit}
                   onRemoveFromKit={handleRemoveSoundFromKit}
                   isFocused={focusedSoundId === asset.id}
-                  onFocus={() => setFocusedSoundId(asset.id)}
+                  onFocus={setFocusedSoundId}
                 />
               </div>
             );
