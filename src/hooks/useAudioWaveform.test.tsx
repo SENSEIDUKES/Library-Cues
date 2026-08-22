@@ -59,6 +59,14 @@ describe('useAudioWaveform hook', () => {
     // Bulletproof mock for Audio constructor
     const MockAudio = function(this: any, url?: string) {
       constructorSpy(url);
+      this.src = url || '';
+      this.getAttribute = vi.fn((attr: string) => (attr === 'src' ? this.src : null));
+      this.setAttribute = vi.fn((attr: string, val: string) => { if (attr === 'src') this.src = val; });
+      this.removeAttribute = vi.fn((attr: string) => { if (attr === 'src') this.src = ''; });
+      this.load = vi.fn();
+      this.buffered = { length: 0, start: vi.fn(), end: vi.fn() };
+      this.readyState = 4;
+      this.error = null;
       this.addEventListener = vi.fn();
       this.removeEventListener = vi.fn();
       this.play = vi.fn(() => Promise.resolve());
@@ -66,6 +74,8 @@ describe('useAudioWaveform hook', () => {
       this.currentTime = 0;
       this.duration = 5.0;
       this.volume = 1.0;
+      this.playbackRate = 1.0;
+      this.defaultPlaybackRate = 1.0;
       this.loop = false;
       this.paused = true;
       latestAudioInstance = this;

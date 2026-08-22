@@ -205,6 +205,7 @@ function AudioWaveformComponent({
   };
   
   const {
+    audioRef,
     isPlaying,
     currentTime,
     displayDuration,
@@ -455,6 +456,9 @@ function AudioWaveformComponent({
           className
         )}
       >
+        {/* Faceless SEIHouse Audio Player Element */}
+        <audio ref={audioRef} className="hidden" aria-hidden="true" preload="metadata" />
+
         {/* Left Elements: Selection and Playback */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onToggleSelect && (
@@ -754,6 +758,9 @@ function AudioWaveformComponent({
         className
       )}
     >
+      {/* Faceless SEIHouse Audio Player Element */}
+      <audio ref={audioRef} className="hidden" aria-hidden="true" preload="metadata" />
+
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2.5 max-w-[75%]">
           {onToggleSelect && (

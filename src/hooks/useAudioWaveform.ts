@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAudioPlayer } from '@seihouse/audio-player';
 import { decodeAudioBase64, generateFallbackPeaks, createReverbImpulse, computeLoopGain } from '../lib/audio';
 import { SoundAsset } from '../types';
 import { saveSound } from '../lib/storage';
@@ -6,7 +7,58 @@ import { saveSound } from '../lib/storage';
 const pauseCallbacks = new Map<string, () => void>();
 
 export function useAudioWaveform(asset: SoundAsset) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string>('');
+  const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Convert base64 audio to object URL for the SEIHouse audio player
+  useEffect(() => {
+    let url = '';
+    try {
+      const binaryString = window.atob(asset.audioBase64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: asset.mimeType || 'audio/mp3' });
+      url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+
+      // In headless or test environments where DOM is not mounted, initialize Audio instance
+      if (typeof window !== 'undefined' && window.Audio) {
+        const audio = new Audio(url);
+        audio.loop = !!asset.loop;
+        fallbackAudioRef.current = audio;
+      }
+    } catch (e) {
+      console.error('Error creating audio URL', e);
+    }
+
+    return () => {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+      if (fallbackAudioRef.current) {
+        fallbackAudioRef.current.pause();
+        fallbackAudioRef.current = null;
+      }
+    };
+  }, [asset.audioBase64, asset.mimeType, asset.loop]);
+
+  // Faceless SEIHouse Audio Player Engine instance
+  const seihousePlayer = useAudioPlayer({
+    src: audioUrl,
+    loop: !!asset.loop,
+    autoPlay: false,
+  });
+  const seihousePlayerRef = useRef(seihousePlayer);
+  seihousePlayerRef.current = seihousePlayer;
+
+  // Active audio reference (SEIHouse engine ref or headless fallback)
+  const audioRef = seihousePlayer.audioRef || fallbackAudioRef;
+  if (!audioRef.current && fallbackAudioRef.current) {
+    (audioRef as React.MutableRefObject<HTMLAudioElement | null>).current = fallbackAudioRef.current;
+  }
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -54,10 +106,12 @@ export function useAudioWaveform(asset: SoundAsset) {
   const reverbGainNodeRef = useRef<GainNode | null>(null);
   const loopGainNodeRef = useRef<GainNode | null>(null);
 
-  const displayDuration = engineDuration > 0 ? engineDuration : offlineDuration;
+  const activeDuration = seihousePlayer.duration > 0 ? seihousePlayer.duration : engineDuration;
+  const displayDuration = activeDuration > 0 ? activeDuration : offlineDuration;
 
   const setupWebAudio = useCallback(() => {
-    if (!audioRef.current || typeof window === 'undefined') return;
+    const el = audioRef.current;
+    if (!el || typeof window === 'undefined') return;
     if (audioContextRef.current) return;
 
     try {
@@ -67,7 +121,7 @@ export function useAudioWaveform(asset: SoundAsset) {
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
 
-      const source = ctx.createMediaElementSource(audioRef.current);
+      const source = ctx.createMediaElementSource(el);
       sourceNodeRef.current = source;
 
       const filter = ctx.createBiquadFilter();
@@ -116,7 +170,7 @@ export function useAudioWaveform(asset: SoundAsset) {
     } catch (e) {
       console.warn("Web Audio API setup failed or blocked", e);
     }
-  }, []);
+  }, [audioRef]);
 
   // Synchronize filter parameters in real time
   useEffect(() => {
@@ -151,94 +205,80 @@ export function useAudioWaveform(asset: SoundAsset) {
     setReverbAmount(val);
   }, [setupWebAudio]);
 
+  // Sync event listeners with audioRef element
   useEffect(() => {
-    try {
-      const binaryString = window.atob(asset.audioBase64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: asset.mimeType || 'audio/mp3' });
-      const url = URL.createObjectURL(blob);
-      
-      const audio = new Audio(url);
-      audio.loop = !!asset.loop;
-      audio.volume = volume;
-      audio.playbackRate = playbackRate;
-      if ('preservesPitch' in audio) {
-        audio.preservesPitch = false;
-      } else if ('mozPreservesPitch' in audio) {
-        (audio as any).mozPreservesPitch = false;
-      } else if ('webkitPreservesPitch' in audio) {
-        (audio as any).webkitPreservesPitch = false;
-      }
-      audioRef.current = audio;
-      
-      const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-      const onLoadedMetadata = () => {
-        if (audio.duration && audio.duration !== Infinity) {
-          setEngineDuration(audio.duration);
-        }
-      };
-      const onEnded = () => setIsPlaying(false);
-      const onPlay = () => setIsPlaying(true);
-      const onPause = () => setIsPlaying(false);
-      
-      audio.addEventListener('timeupdate', onTimeUpdate);
-      audio.addEventListener('loadedmetadata', onLoadedMetadata);
-      audio.addEventListener('ended', onEnded);
-      audio.addEventListener('play', onPlay);
-      audio.addEventListener('pause', onPause);
-      
-      return () => {
-        audio.removeEventListener('timeupdate', onTimeUpdate);
-        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-        audio.removeEventListener('ended', onEnded);
-        audio.removeEventListener('play', onPlay);
-        audio.removeEventListener('pause', onPause);
-        audio.pause();
-        audioRef.current = null;
-        URL.revokeObjectURL(url);
+    const audio = audioRef.current;
+    if (!audio) return;
 
-        // Web Audio Cleanup
-        if (sourceNodeRef.current) {
-          try { sourceNodeRef.current.disconnect(); } catch (_) {}
-          sourceNodeRef.current = null;
-        }
-        if (filterNodeRef.current) {
-          try { filterNodeRef.current.disconnect(); } catch (_) {}
-          filterNodeRef.current = null;
-        }
-        if (delayNodeRef.current) {
-          try { delayNodeRef.current.disconnect(); } catch (_) {}
-          delayNodeRef.current = null;
-        }
-        if (feedbackNodeRef.current) {
-          try { feedbackNodeRef.current.disconnect(); } catch (_) {}
-          feedbackNodeRef.current = null;
-        }
-        if (reverbNodeRef.current) {
-          try { reverbNodeRef.current.disconnect(); } catch (_) {}
-          reverbNodeRef.current = null;
-        }
-        if (reverbGainNodeRef.current) {
-          try { reverbGainNodeRef.current.disconnect(); } catch (_) {}
-          reverbGainNodeRef.current = null;
-        }
-        if (loopGainNodeRef.current) {
-          try { loopGainNodeRef.current.disconnect(); } catch (_) {}
-          loopGainNodeRef.current = null;
-        }
-        if (audioContextRef.current) {
-          audioContextRef.current.close().catch(() => {});
-          audioContextRef.current = null;
-        }
-      };
-    } catch (e) {
-      console.error('Error creating audio URL', e);
+    audio.loop = !!asset.loop;
+    audio.volume = volume;
+    audio.playbackRate = playbackRate;
+    if ('preservesPitch' in audio) {
+      audio.preservesPitch = false;
+    } else if ('mozPreservesPitch' in audio) {
+      (audio as any).mozPreservesPitch = false;
+    } else if ('webkitPreservesPitch' in audio) {
+      (audio as any).webkitPreservesPitch = false;
     }
-  }, [asset.audioBase64, asset.mimeType, asset.loop]);
+    
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onLoadedMetadata = () => {
+      if (audio.duration && audio.duration !== Infinity) {
+        setEngineDuration(audio.duration);
+      }
+    };
+    const onEnded = () => setIsPlaying(false);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+
+      // Web Audio Cleanup
+      if (sourceNodeRef.current) {
+        try { sourceNodeRef.current.disconnect(); } catch (_) {}
+        sourceNodeRef.current = null;
+      }
+      if (filterNodeRef.current) {
+        try { filterNodeRef.current.disconnect(); } catch (_) {}
+        filterNodeRef.current = null;
+      }
+      if (delayNodeRef.current) {
+        try { delayNodeRef.current.disconnect(); } catch (_) {}
+        delayNodeRef.current = null;
+      }
+      if (feedbackNodeRef.current) {
+        try { feedbackNodeRef.current.disconnect(); } catch (_) {}
+        feedbackNodeRef.current = null;
+      }
+      if (reverbNodeRef.current) {
+        try { reverbNodeRef.current.disconnect(); } catch (_) {}
+        reverbNodeRef.current = null;
+      }
+      if (reverbGainNodeRef.current) {
+        try { reverbGainNodeRef.current.disconnect(); } catch (_) {}
+        reverbGainNodeRef.current = null;
+      }
+      if (loopGainNodeRef.current) {
+        try { loopGainNodeRef.current.disconnect(); } catch (_) {}
+        loopGainNodeRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+    };
+  }, [audioRef.current, asset.loop]);
 
   // Anti-pop smooth fade-in and fade-out envelope for looped audio
   useEffect(() => {
@@ -289,13 +329,14 @@ export function useAudioWaveform(asset: SoundAsset) {
         } catch (_) {}
       }
     };
-  }, [isPlaying, asset.loop, displayDuration, volume]);
+  }, [isPlaying, asset.loop, displayDuration, volume, audioRef]);
 
   const pause = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
-      setIsPlaying(false);
     }
+    seihousePlayerRef.current?.pause();
+    setIsPlaying(false);
   }, []);
 
   useEffect(() => {
@@ -306,26 +347,30 @@ export function useAudioWaveform(asset: SoundAsset) {
   }, [asset.id, pause]);
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
     
     setupWebAudio();
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
     }
     
-    if (audioRef.current.paused) {
+    if (audio.paused) {
       pauseCallbacks.forEach((pauseCallback, id) => {
         if (id !== asset.id) {
           pauseCallback();
         }
       });
-      audioRef.current.play().catch(e => console.error('Error playing audio', e));
+      seihousePlayerRef.current?.play();
+      audio.play().catch(e => console.error('Error playing audio', e));
     } else {
-      audioRef.current.pause();
+      seihousePlayerRef.current?.pause();
+      audio.pause();
     }
   }, [asset.id, setupWebAudio]);
 
   const seek = useCallback((time: number) => {
+    seihousePlayerRef.current?.seek(time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
@@ -334,6 +379,7 @@ export function useAudioWaveform(asset: SoundAsset) {
 
   const setVolume = useCallback((newVolume: number) => {
     setVolumeState(newVolume);
+    seihousePlayerRef.current?.setVolume(newVolume);
     if (audioRef.current) {
       if (!asset.loop || !isPlaying) {
         audioRef.current.volume = newVolume;
@@ -342,6 +388,7 @@ export function useAudioWaveform(asset: SoundAsset) {
   }, [asset.loop, isPlaying]);
 
   const setPlaybackRate = useCallback((newRate: number) => {
+    seihousePlayerRef.current?.setPlaybackRate(newRate);
     if (audioRef.current) {
       audioRef.current.playbackRate = newRate;
       setPlaybackRateState(newRate);
@@ -424,6 +471,8 @@ export function useAudioWaveform(asset: SoundAsset) {
     reverbAmount,
     setReverbAmount: setReverbAmountWithSetup,
     playbackRate,
-    setPlaybackRate
+    setPlaybackRate,
+    // SEIHouse engine exports
+    seihouseEngine: seihousePlayer
   };
 }
